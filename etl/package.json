@@ -1,0 +1,22 @@
+{
+  "name": "ssp-etl-gis",
+  "version": "0.1.0",
+  "description": "Script de ETL para higienizar as planilhas de ocorrencias criminais da SSP-SP antes de carregar no PostGIS.",
+  "private": true,
+  "scripts": {
+    "etl": "ts-node src/index.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "csv-parse": "^6.2.1",
+    "dotenv": "^16.4.5",
+    "pg": "^8.13.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  }
+}

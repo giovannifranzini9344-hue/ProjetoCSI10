@@ -1,0 +1,19 @@
+{
+  // Arquivo de configuracao do TypeScript.
+  // Diz ao compilador COMO transformar nosso codigo .ts em JavaScript e quao
+  // rigoroso ele deve ser ao checar os tipos. (O TypeScript permite comentarios
+  // dentro deste JSON, ao contrario de um JSON comum.)
+  "compilerOptions": {
+    "target": "ES2020",          // versao de JavaScript que vamos gerar
+    "module": "CommonJS",        // sistema de modulos do Node (require/module.exports)
+    "moduleResolution": "Node",  // como o TS encontra as bibliotecas importadas
+    "rootDir": "src",            // onde fica nosso codigo-fonte
+    "outDir": "dist",            // onde o JavaScript compilado seria gravado
+    "strict": true,              // checagem de tipos rigorosa (pega mais erros cedo)
+    "esModuleInterop": true,     // facilita o "import" de bibliotecas antigas
+    "skipLibCheck": true,        // nao re-checa os tipos das bibliotecas (mais rapido)
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true    // permite importar arquivos .json se precisarmos
+  },
+  "include": ["src/**/*.ts"]     // quais arquivos fazem parte do projeto
+}

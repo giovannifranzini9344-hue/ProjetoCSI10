@@ -1,0 +1,2 @@
+# Esta pasta guarda a SAIDA limpa do script de ETL (dados ja higienizados).
+# O conteudo gerado NAO e versionado (ver .gitignore).

@@ -1,0 +1,28 @@
+# Dependências instaladas (geradas por "npm install")
+node_modules/
+
+# Saídas de build do TypeScript
+dist/
+build/
+
+# Variáveis de ambiente com senhas — NUNCA versionar
+.env
+.env.local
+
+# Dados brutos e processados (arquivos grandes / dados oficiais da SSP-SP)
+etl/data/raw/*
+etl/data/processed/*
+# ...mas manter as pastas no repositório:
+!etl/data/raw/.gitkeep
+!etl/data/processed/.gitkeep
+
+# Logs e temporários
+*.log
+npm-debug.log*
+
+# Arquivos do sistema operacional
+Thumbs.db
+.DS_Store
+
+# Configuracoes locais do Claude Code (especificas desta maquina)
+.claude/settings.local.json
