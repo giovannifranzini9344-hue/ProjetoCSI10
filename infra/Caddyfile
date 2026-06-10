@@ -1,0 +1,9 @@
+# HTTPS automatico (Let's Encrypt) para o hostname nip.io, que aponta para o IP.
+# O acesso por IP (http) continua funcionando.
+34-39-181-38.nip.io {
+	reverse_proxy web:80
+}
+
+http://34.39.181.38 {
+	reverse_proxy web:80
+}

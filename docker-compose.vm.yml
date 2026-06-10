@@ -43,10 +43,25 @@ services:
     build: ./web
     container_name: csi10_web
     restart: always
-    ports:
-      - "80:80"
     depends_on:
       - api
 
+  # Caddy faz o HTTPS automatico (Let's Encrypt) e fica na frente do web.
+  caddy:
+    image: caddy:2-alpine
+    container_name: csi10_caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:
