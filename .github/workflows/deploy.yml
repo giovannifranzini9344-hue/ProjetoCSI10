@@ -1,0 +1,34 @@
+name: Deploy para a VM (Google Cloud)
+
+# Roda a cada push na main (ou manualmente em Actions -> Run workflow).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # A chave privada da VM fica num "secret" do repositorio (VM_SSH_KEY).
+      - name: Configurar chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H 34.39.181.38 >> ~/.ssh/known_hosts 2>/dev/null
+
+      # Envia o codigo atualizado para a VM (preserva o infra/.env de la).
+      - name: Enviar codigo para a VM
+        run: |
+          rsync -az --exclude='node_modules' --exclude='dist' --exclude='.git' --exclude='.env' \
+            -e "ssh -i ~/.ssh/id_deploy" \
+            api web infra docker-compose.vm.yml csi10@34.39.181.38:~/csi10/
+
+      # Reconstroi e sobe API + frontend na VM.
+      - name: Reconstruir e subir na VM
+        run: |
+          ssh -i ~/.ssh/id_deploy csi10@34.39.181.38 \
+            'cd ~/csi10 && docker compose -f docker-compose.vm.yml --env-file infra/.env up -d --build'
