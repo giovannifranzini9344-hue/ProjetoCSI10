@@ -6,6 +6,8 @@
   "scripts": {
     "etl": "ts-node src/index.ts",
     "load": "ts-node src/load.ts",
+    "municipios": "ts-node src/municipios.ts",
+    "centroides": "ts-node src/centroides_bairro.ts",
     "build": "tsc"
   },
   "dependencies": {

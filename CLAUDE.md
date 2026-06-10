@@ -21,7 +21,7 @@ ITA**, feito por uma **dupla**. Fonte de dados: planilhas abertas da **SSP-SP**
 - **Backend/API:** Node.js (Express ou Fastify).
 - **Banco:** PostgreSQL + **PostGIS**.
 - **Infra:** Docker (banco + API conteinerizados).
-- **ETL:** Node.js + TypeScript (`xlsx`, `pg`, `dotenv`).
+- **ETL:** Node.js + TypeScript (`csv-parse`, `pg`, `pg-copy-streams`, `dotenv`).
 
 ## Estrutura do repositório
 
@@ -31,14 +31,33 @@ ProjetoCSI10/
 ├── README.md                       # visão geral para humanos
 ├── docs/
 │   └── ESPECIFICACAO-TECNICA.md    # DET — fonte da verdade do escopo
-└── etl/                            # script de ETL (etapa atual)
-    ├── src/index.ts                # ponto de entrada do ETL
-    ├── data/raw/                   # planilhas brutas da SSP-SP (NÃO versionar)
-    └── data/processed/             # saída limpa do ETL
+├── etl/                            # extração, transformação e carga (Node/TS)
+│   ├── src/index.ts                # ETL: limpa as planilhas -> ocorrencias_limpas.csv
+│   ├── src/load.ts                 # carga em massa do CSV no PostGIS (COPY)
+│   ├── src/municipios.ts           # baixa a malha municipal do IBGE -> tabela municipios
+│   ├── src/centroides_bairro.ts    # preenche centroides de bairro via OpenStreetMap
+│   ├── data/raw/                   # planilhas brutas da SSP-SP (NÃO versionar)
+│   └── data/processed/             # saída limpa do ETL (NÃO versionar)
+└── infra/                          # banco de dados (Docker)
+    ├── docker-compose.yml          # serviço PostGIS (postgis/postgis:16-3.4)
+    ├── .env.example                # modelo de credenciais (.env real NÃO versionado)
+    └── initdb/01_schema.sql        # esquema da tabela "ocorrencias"
 ```
 
-Pastas futuras (ainda não criadas): `api/` (backend Node), `web/` (frontend React),
-`infra/` (docker-compose com PostGIS).
+Pastas futuras (ainda não criadas): `api/` (backend Node), `web/` (frontend React).
+
+## Como rodar (resumo)
+
+```bash
+# 1) Banco de dados (a partir de infra/, com Docker Desktop aberto)
+docker compose up -d            # liga o PostGIS;  down = desliga (dados persistem)
+
+# 2) Pipeline de dados (a partir de etl/)
+npm run etl                     # limpa as planilhas de data/raw -> data/processed
+npm run load                    # carrega o CSV limpo no banco (tabela ocorrencias)
+npm run municipios              # baixa a malha do IBGE -> tabela municipios
+npm run centroides              # preenche centroides de bairro (OSM) nas ocorrencias
+```
 
 ## Convenções de trabalho (IMPORTANTES)
 
@@ -55,6 +74,18 @@ Pastas futuras (ainda não criadas): `api/` (backend Node), `web/` (frontend Rea
 
 ## Fase atual
 
-Início da implementação: ambiente montado, **escrevendo o ETL**. Próximo passo
-depende de receber as planilhas da SSP-SP em `etl/data/raw/`. A modelagem do
-PostGIS/Docker está **em espera** por decisão da equipe.
+Backend de dados **funcionando**:
+- ✅ ETL de limpeza das 9 planilhas semestrais (Jan/2022–Abr/2026) →
+  `ocorrencias_limpas.csv` (**5.168.102 linhas**).
+- ✅ Banco **PostGIS** no Docker, com a tabela `ocorrencias` carregada e indexada
+  (índice GIST espacial). ~3,7 milhões de linhas com coordenada exata.
+- ✅ Tabela `municipios` (malha do IBGE, 645 polígonos) para centroide de cidade e
+  para a ferramenta de buffer.
+- ✅ Centroides de **bairro** preenchidos via **OpenStreetMap** (Overpass + match
+  exato/fuzzy). Geolocalização total: **87,7%** (SJC: **91%**). O que não casou
+  fica **sem coordenada** (oculto no mapa) — nunca jogamos no centroide da cidade.
+
+**Próximos passos:** (1) **API** (backend Node) com os filtros/consultas espaciais;
+(2) **frontend** (React + OpenLayers): heatmap, time slider, filtros, buffer.
+Reforços opcionais de cobertura de bairro: `admin_level=10` do OSM, fallback
+Nominatim para faltantes de alto volume.

@@ -86,18 +86,28 @@ Todas as demais colunas são **descartadas** no ETL.
 
 ### 3.3. Tratamento de anomalias e sigilo (regras críticas)
 
-Anomalias confirmadas em amostra (111 coordenadas inválidas numa amostra pequena —
-devem se repetir em escala nos 6 milhões):
+Anomalias **confirmadas na base real** (9 arquivos semestrais, **5.168.102 linhas**):
 
-- **Tipagem mista nas coordenadas:** além de `0`, há registros com um traço `-` ou
-  texto. → converter para `float`; se inválido, tratar como nulo e acionar a regra
-  de centroide.
-- **`VEDAÇÃO DA DIVULGAÇÃO DOS DADOS RELATIVOS`** no campo `LOGRADOURO` (com
-  lat/long zeradas) — restrição legal de sigilo.
-- **Delegacia Eletrônica:** endereço presente (ex.: "Praça da Sé") mas coordenadas
-  com traço `-`.
-- **Ausência de horário exato** (`HORA_OCORRENCIA_BO` muitas vezes nula) → confirma
-  que o Time Slider deve operar por **Mês/Ano**, não por hora/dia.
+- **Codificação mista entre os arquivos:** 2022 vem em **Latin1/ANSI**; 2023–2026 em
+  **UTF-8 (com BOM)**. → o ETL detecta a codificação de cada arquivo automaticamente.
+- **Cabeçalhos divergentes por ano:** a coluna da cidade chama-se `CIDADE` em 2022 e
+  `NOME_MUNICIPIO` de 2023 em diante (2025/2026 ganham `DESCR_TIPOLOCAL`). → o ETL
+  casa colunas **pelo nome**, com apelido `NOME_MUNICIPIO`/`CIDADE`. As colunas que
+  importam (`LATITUDE`, `BAIRRO`, `NATUREZA_APURADA`...) têm o mesmo nome em todos.
+- **Linhas desalinhadas:** campos com `;` ou aspas embutidos quebram um split ingênuo.
+  → usamos a biblioteca `csv-parse` (entende aspas; 0 linhas perdidas por erro).
+- **Tipagem mista nas coordenadas:** vírgula decimal, traço `-`, valor `0` ou vazio. →
+  converter para `float` (vírgula→ponto); se inválido, acionar a regra de centroide.
+- **`VEDAÇÃO DA DIVULGAÇÃO DOS DADOS RELATIVOS`** no `LOGRADOURO` (lat/long `0`) —
+  restrição legal de sigilo. Tratado como coordenada inválida.
+- **Delegacia Eletrônica:** endereço presente, mas coordenadas com `-`.
+- **Variações de grafia nas naturezas** (`TRÁFICO` vs `TRAFICO`, hífens) → unificadas
+  numa categoria canônica (MAIÚSCULAS, sem acento/pontuação): **24 categorias**.
+- **Ausência de horário exato** (`HORA_OCORRENCIA_BO` nula) → confirma o Time Slider
+  por **Mês/Ano**, não por hora/dia.
+
+**Distribuição real após o ETL:** `EXATA` **71,7%** · `CENTROIDE_BAIRRO` **27,9%**
+(~1,44 milhão) · `CENTROIDE_CIDADE` **0,3%** (~17 mil).
 
 #### Regra final de geolocalização — coluna `precisao_geo`
 
@@ -243,12 +253,27 @@ Histórico do "porquê" de cada escolha (atualizar conforme o projeto evolui):
 
 ---
 
-## 10. Fase Atual
+## 10. Estado da Implementação
 
-✅ **Concluído:** escopo, arquitetura, especificação completa (este DET), regras de
-ETL/anomalias, decisões de UX.
+✅ **Concluído:**
+- Escopo, arquitetura e especificação (este DET); decisões de UX.
+- **ETL** (`etl/src/index.ts`): limpa as 9 planilhas semestrais →
+  `ocorrencias_limpas.csv` (**5.168.102 linhas**).
+- **Banco PostGIS** no Docker (`infra/`). Tabela **`ocorrencias`** carregada via
+  `COPY` (`etl/src/load.ts`), com coluna `geom` (Point/4326) gerada de lat/long e
+  índices (GIST espacial + ano/mês + natureza + município).
+- Tabela **`municipios`** (`etl/src/municipios.ts`): malha do IBGE (645 polígonos)
+  com centroide por cidade — base do centroide de cidade e da ferramenta de buffer.
 
-🔜 **Em andamento:** montagem do ambiente e do **script de ETL** (limpeza das
-planilhas). Decidiu-se começar pelo ETL antes da modelagem do banco.
+### Esquema do banco (resumo)
 
-⏳ **Aguardando:** modelagem do PostGIS + Docker (em espera, por decisão da equipe).
+- `ocorrencias(id, municipio, ano, mes, natureza, bairro, delegacia, latitude,
+  longitude, precisao_geo, geom geometry(Point,4326))`
+- `municipios(cod_ibge, nome, nome_norm, geom geometry(MultiPolygon,4326), centroide)`
+
+🔜 **Próximos passos:**
+1. Preencher os **centroides de bairro** das ~28% de linhas `CENTROIDE_BAIRRO`
+   (depende da fonte de coordenadas de bairro — **em pesquisa pela equipe**).
+2. **API** (backend Node.js) expondo os filtros/consultas espaciais.
+3. **Frontend** (React + OpenLayers): heatmap, time slider, filtros, buffer.
+4. Deploy, relatório e vídeo.
