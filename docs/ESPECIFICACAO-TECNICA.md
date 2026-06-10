@@ -124,10 +124,37 @@ Anomalias **confirmadas na base real** (9 arquivos semestrais, **5.168.102 linha
   gráficos da interface — nunca subnotificamos o volume real de crimes.
 - A tag "registro virtual" foi **eliminada** para simplificar a lógica.
 
-> ⚠️ **Pendência de implementação:** precisamos de uma fonte de **centroides de
-> bairro** e de **centroides de município** (ex.: IBGE para municípios; para
-> bairros, malha de SP/IBGE ou base municipal). A definir antes de codar os casos
-> 2 e 3.
+> ✅ **Resolvido.** Centroides de **município** vêm da malha do IBGE (tabela
+> `municipios`, `etl/src/municipios.ts`). Centroides de **bairro** vêm do
+> **OpenStreetMap** (Overpass) + **Nominatim**, com casamento exato e aproximado
+> (`etl/src/centroides_bairro.ts`). Resultado na seção 3.4.
+
+### 3.4. Cobertura geográfica final (resultado do ETL)
+
+Distribuição final das **5.168.102** ocorrências quanto à localização no mapa:
+
+| Categoria | Ocorrências | % | O que é |
+|---|---:|---:|---|
+| ✅ **100% OK** (coordenada exata) | **3.706.674** | **71,7%** | Lat/long válidas no dado original; plotadas no local exato. |
+| 📍 **Aproximado** (centroide de bairro) | **845.217** | **16,4%** | Sem coordenada exata, mas o **bairro** foi localizado e o ponto caiu no centro do bairro. Oculto por padrão (toggle). |
+| 🚫 **Sem coordenada** (oculto) | **616.211** | **11,9%** | Não plotado no mapa; entra **apenas** nos números/gráficos. |
+
+**Detalhe do "Aproximado" — por fonte do centroide** (coluna `ocorrencias.centroide_fonte`):
+- `OSM_EXATO` (nome do bairro idêntico): **742.446**
+- `OSM_FUZZY` (nome aproximado, similaridade ≥ 0,65): **75.183**
+- `NOMINATIM` (geocodificação dos faltantes de alto volume): **27.588**
+
+**Detalhe do "Sem coordenada" — e o porquê:**
+- **Bairro não localizado** (**599.266**): a ocorrência tem bairro, mas ele não
+  existe no OpenStreetMap nem foi achado pelo Nominatim — a "cauda longa" de
+  bairros pouco mapeados (cada um de baixo volume). **Decisão de projeto:** ficam
+  sem coordenada (ocultos) em vez de irem para o centro da cidade, para **não
+  criar falso hotspot** no mapa de calor.
+- **Sem bairro informado** (**16.945**, tag `CENTROIDE_CIDADE`): o dado não tinha
+  nem coordenada nem bairro; pela mesma decisão, não recebem coordenada.
+
+**Resultado:** **88,1%** das ocorrências são plotáveis no mapa (4.551.891). Em
+**São José dos Campos** (cidade-foco): **91,1%** (45.607 de 50.065).
 
 ---
 
