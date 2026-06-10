@@ -1,0 +1,52 @@
+# ============================================================================
+#  Compose de PRODUCAO (VM Linux). Sobe banco + API + frontend (Nginx na porta 80).
+#  O banco e populado por RESTORE de um dump do banco local ja processado
+#  (por isso nao monta o initdb aqui). Credenciais vem de infra/.env.
+#
+#  Uso (na raiz do projeto, na VM):
+#    docker compose -f docker-compose.vm.yml --env-file infra/.env up -d db
+#    (restaurar o dump no banco)
+#    docker compose -f docker-compose.vm.yml --env-file infra/.env up -d --build api web
+# ============================================================================
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: csi10_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: ./api
+    container_name: csi10_api
+    restart: always
+    environment:
+      PGHOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./web
+    container_name: csi10_web
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

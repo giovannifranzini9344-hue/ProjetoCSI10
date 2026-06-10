@@ -81,6 +81,21 @@ Data de início da sessão autônoma: 2026-06-09.
   da área; por ora não aplica os filtros de tempo/natureza àquela contagem.
 - **Reverter:** estender a query do buffer com os mesmos filtros (simples).
 
+## D10 — Deploy: VM única (Google Cloud) com Docker Compose + restore do banco
+
+- **Contexto:** os planos gratuitos de banco gerenciado (~0,5 GB) não cabem os
+  5,17 milhões de linhas.
+- **Escolha:** uma **VM Linux** (GCP, trial de 90 dias) rodando a stack inteira
+  com `docker-compose.vm.yml` (banco + API + frontend Nginx na porta 80). O banco
+  foi populado por **restore de um dump do banco local já processado** (78 MB),
+  reaproveitando todo o ETL/centroides — sem re-rodar nada na VM.
+- **Vantagem:** cabe o **estado inteiro**, de graça (dentro do crédito), num só
+  lugar. **Reverter/alternativa:** serviços gerenciados (Supabase/Render/Vercel)
+  com recorte de SJC, se a VM não puder ficar de pé.
+- **Notas de produção:** o IP externo é efêmero (muda se a VM for **parada** —
+  mantê-la ligada preserva o IP, ou reservar um IP estático). Sem HTTPS ainda
+  (acesso `http://`); o banco não expõe porta (só rede interna do Docker).
+
 ---
 
 <!-- Próximas decisões serão acrescentadas abaixo conforme surgirem. -->

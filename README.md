@@ -73,12 +73,22 @@ docker compose -f docker-compose.full.yml --env-file infra/.env up -d --build ap
 # -> http://localhost:8080
 ```
 
-## Deploy em nuvem
+## Deploy
 
-As imagens (`api/Dockerfile`, `web/Dockerfile`) estão prontas. O deploy em si é
-feito nas **suas contas**: banco em Supabase/Neon (Postgres+PostGIS), API em
-Render/Railway, frontend em Vercel/Netlify. (Esta etapa exige criar contas, por
-isso não é automatizada.)
+**Produção numa VM Linux (em uso):** a stack inteira roda numa máquina com
+[`docker-compose.vm.yml`](docker-compose.vm.yml) — banco + API + frontend (Nginx
+na porta 80). O banco é populado por *restore* de um dump do banco local. Resumo:
+
+```bash
+# na VM (Docker instalado), na pasta do projeto:
+docker compose -f docker-compose.vm.yml --env-file infra/.env up -d db
+docker exec -i csi10_db pg_restore -U csi10 -d seguranca_sjc --no-owner < csi10.dump
+docker compose -f docker-compose.vm.yml --env-file infra/.env up -d --build api web
+# -> http://IP_DA_VM
+```
+
+**Alternativa gerenciada:** banco em Supabase/Neon, API em Render, frontend em
+Vercel (exige criar contas; cabe melhor com um recorte menor de dados).
 
 ## Estrutura
 
