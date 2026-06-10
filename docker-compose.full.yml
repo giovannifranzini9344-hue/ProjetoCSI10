@@ -1,0 +1,58 @@
+# ============================================================================
+#  Stack COMPLETA em containers: banco PostGIS + API + frontend (Nginx).
+#  Pronto para deploy. As credenciais vem de infra/.env.
+#
+#  COMO USAR (a partir da raiz do projeto):
+#   1) Subir so o banco:
+#        docker compose -f docker-compose.full.yml --env-file infra/.env up -d db
+#   2) Popular o banco (uma vez), na pasta etl/:
+#        npm run etl && npm run load && npm run municipios && npm run centroides
+#   3) Subir API + frontend:
+#        docker compose -f docker-compose.full.yml --env-file infra/.env up -d --build api web
+#   -> Aplicacao em http://localhost:8080
+#
+#  Observacao: para um deploy em NUVEM, cada servico (banco, api, web) vai para o
+#  provedor da sua conta (ex.: Supabase/Neon, Render/Railway, Vercel/Netlify).
+# ============================================================================
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: csi10_db_full
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - pgdata_full:/var/lib/postgresql/data
+      - ./infra/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build: ./api
+    container_name: csi10_api
+    environment:
+      PGHOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./web
+    container_name: csi10_web
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata_full:

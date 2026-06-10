@@ -38,13 +38,16 @@ ProjetoCSI10/
 │   ├── src/centroides_bairro.ts    # preenche centroides de bairro via OpenStreetMap
 │   ├── data/raw/                   # planilhas brutas da SSP-SP (NÃO versionar)
 │   └── data/processed/             # saída limpa do ETL (NÃO versionar)
-└── infra/                          # banco de dados (Docker)
-    ├── docker-compose.yml          # serviço PostGIS (postgis/postgis:16-3.4)
-    ├── .env.example                # modelo de credenciais (.env real NÃO versionado)
-    └── initdb/01_schema.sql        # esquema da tabela "ocorrencias"
+├── infra/                          # banco de dados (Docker)
+│   ├── docker-compose.yml          # serviço PostGIS (postgis/postgis:16-3.4)
+│   ├── .env.example                # modelo de credenciais (.env real NÃO versionado)
+│   └── initdb/01_schema.sql        # esquema da tabela "ocorrencias"
+├── api/                            # API Fastify + PostGIS (camada de lógica)
+│   └── src/server.ts               # rotas: /pontos /heatmap /stats /buffer ...
+├── web/                            # frontend React + TypeScript + OpenLayers (Vite)
+│   └── src/                        # App, MapView, Sidebar, TimeSlider, colors
+└── docker-compose.full.yml         # stack completa (banco + api + web) em containers
 ```
-
-Pastas futuras (ainda não criadas): `api/` (backend Node), `web/` (frontend React).
 
 ## Como rodar (resumo)
 
@@ -85,7 +88,11 @@ Backend de dados **funcionando**:
   exato/fuzzy). Geolocalização total: **87,7%** (SJC: **91%**). O que não casou
   fica **sem coordenada** (oculto no mapa) — nunca jogamos no centroide da cidade.
 
-**Próximos passos:** (1) **API** (backend Node) com os filtros/consultas espaciais;
-(2) **frontend** (React + OpenLayers): heatmap, time slider, filtros, buffer.
-Reforços opcionais de cobertura de bairro: `admin_level=10` do OSM, fallback
-Nominatim para faltantes de alto volume.
+- ✅ **API** (`api/`, Fastify): rotas de filtros, pontos, heatmap, stats e buffer.
+- ✅ **Frontend** (`web/`, React + OpenLayers): mapa, heatmap, time slider,
+  filtros, toggle, buffer e popups — **rodando localmente e integrado**.
+
+**Como rodar:** ver [`README.md`](README.md) (banco + `npm run dev` em `api/` e `web/`).
+
+**Próximos passos:** deploy em nuvem (contas do usuário) e polimento da UI.
+Reforços opcionais de cobertura de bairro continuam disponíveis.
