@@ -1,9 +1,10 @@
 /** ====================================================================
- *  Mapa (OpenLayers). Gerencia 4 camadas sobre o mapa-base:
- *   - heatmap (visao densa, estado inteiro)
- *   - pontos coloridos por natureza, agrupados em clusters (visao filtrada)
- *   - buffer (poligono do municipio + raio)
- *  Recarrega os dados quando os filtros mudam, e mostra popup ao clicar.
+ *  Mapa (OpenLayers).
+ *   - A camada exibida depende do ZOOM: afastado = heatmap; bem perto
+ *     (>= zoom de bairro) = pontos agrupados em clusters COLORIDOS.
+ *   - Busca sempre so a AREA VISIVEL (bbox) -> rapido mesmo no estado todo.
+ *   - O mapa so se reposiciona quando o usuario MUDA a cidade (no play o
+ *     zoom fica fixo).
  *  ==================================================================== */
 import { useEffect, useRef, useState } from "react";
 import "ol/ol.css";
@@ -19,29 +20,48 @@ import GeoJSON from "ol/format/GeoJSON";
 import Feature from "ol/Feature";
 import Point from "ol/geom/Point";
 import Overlay from "ol/Overlay";
-import { fromLonLat } from "ol/proj";
+import { fromLonLat, transformExtent } from "ol/proj";
 import { Style, Circle as CircleStyle, Fill, Stroke, Text } from "ol/style";
-import { Filtros, apiPontos, apiHeatmap } from "../api";
+import { Filtros, apiPontos, apiHeatmap, apiExtent } from "../api";
 import { corDaNatureza } from "../colors";
 
 const geojson = new GeoJSON();
 const SP_CENTRO = fromLonLat([-48.5, -22.4]);
+const ZOOM_INICIAL = 7;
+const ZOOM_PONTOS = 13; // a partir daqui: pontos/clusters; abaixo: heatmap
 
-// Estilo de um cluster: bolha com contagem (>1) ou ponto colorido (==1).
+// Celula do heatmap conforme o zoom (mais grossa quando afastado = mais rapido).
+function cellPorZoom(z: number): number {
+  if (z < 7) return 0.08;
+  if (z < 9) return 0.04;
+  if (z < 11) return 0.02;
+  return 0.012;
+}
+
+// Cor de um cluster = cor da natureza MAIS COMUM dentro dele.
+function corDominante(features: any[]): string {
+  const cont: Record<string, number> = {};
+  let melhor = "", max = -1;
+  for (const f of features) {
+    const n = f.get("natureza");
+    cont[n] = (cont[n] || 0) + 1;
+    if (cont[n] > max) { max = cont[n]; melhor = n; }
+  }
+  return corDaNatureza(melhor);
+}
+
 function estiloCluster(feature: any) {
   const fs = feature.get("features");
   const size = fs ? fs.length : 1;
   if (size > 1) {
-    const r = Math.min(22, 9 + Math.log2(size) * 2.2);
+    const r = Math.min(24, 9 + Math.log2(size) * 2.2);
     return new Style({
-      image: new CircleStyle({ radius: r, fill: new Fill({ color: "rgba(79,140,255,.78)" }), stroke: new Stroke({ color: "#dfe8ff", width: 1 }) }),
-      text: new Text({ text: String(size), fill: new Fill({ color: "#fff" }), font: "11px sans-serif" }),
+      image: new CircleStyle({ radius: r, fill: new Fill({ color: corDominante(fs) }), stroke: new Stroke({ color: "rgba(255,255,255,.85)", width: 1.5 }) }),
+      text: new Text({ text: String(size), fill: new Fill({ color: "#fff" }), font: "bold 11px sans-serif", stroke: new Stroke({ color: "rgba(0,0,0,.4)", width: 2 }) }),
     });
   }
   const f0 = fs ? fs[0] : feature;
-  return new Style({
-    image: new CircleStyle({ radius: 5, fill: new Fill({ color: corDaNatureza(f0.get("natureza")) }), stroke: new Stroke({ color: "rgba(0,0,0,.45)", width: 1 }) }),
-  });
+  return new Style({ image: new CircleStyle({ radius: 6, fill: new Fill({ color: corDaNatureza(f0.get("natureza")) }), stroke: new Stroke({ color: "rgba(0,0,0,.5)", width: 1 }) }) });
 }
 
 const estiloBuffer = new Style({
@@ -49,9 +69,9 @@ const estiloBuffer = new Style({
   fill: new Fill({ color: "rgba(79,140,255,.06)" }),
 });
 
-type Props = { filtros: Filtros; mostrarPontos: boolean; buffer: any; onLoading: (b: boolean) => void };
+type Props = { filtros: Filtros; buffer: any; onLoading: (b: boolean) => void };
 
-export default function MapView({ filtros, mostrarPontos, buffer, onLoading }: Props) {
+export default function MapView({ filtros, buffer, onLoading }: Props) {
   const elRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const map = useRef<Map>();
@@ -59,23 +79,29 @@ export default function MapView({ filtros, mostrarPontos, buffer, onLoading }: P
   const pts = useRef<VectorSource>();
   const buf = useRef<VectorSource>();
   const overlay = useRef<Overlay>();
+  const carregaRef = useRef<() => void>(() => {});  // recarga atual (chamada no moveend)
+  const reqId = useRef(0);                            // descarta respostas atrasadas
+  const ultMun = useRef<string>("__inicial__");       // detecta troca de cidade
   const [popup, setPopup] = useState<any>(null);
 
   // ---- cria o mapa uma unica vez ----
   useEffect(() => {
     const ptsSrc = new VectorSource();
     const bufSrc = new VectorSource();
-    const heatLayer = new Heatmap({ source: new VectorSource(), blur: 17, radius: 9, weight: (f: any) => f.get("w") });
+    const heatLayer = new Heatmap({ source: new VectorSource(), blur: 16, radius: 9, weight: (f: any) => f.get("w") });
     const ptsLayer = new VectorLayer({ source: new Cluster({ distance: 42, source: ptsSrc }), style: estiloCluster as any });
     const bufLayer = new VectorLayer({ source: bufSrc, style: estiloBuffer });
 
     const m = new Map({
       target: elRef.current!,
       layers: [new TileLayer({ source: new OSM() }), heatLayer, ptsLayer, bufLayer],
-      view: new View({ center: SP_CENTRO, zoom: 7 }),
+      view: new View({ center: SP_CENTRO, zoom: ZOOM_INICIAL }),
     });
     const ov = new Overlay({ element: popupRef.current!, positioning: "bottom-center", stopEvent: false });
     m.addOverlay(ov);
+
+    // Recarrega os dados sempre que o usuario termina de mover/dar zoom.
+    m.on("moveend", () => carregaRef.current());
 
     m.on("singleclick", (evt) => {
       let alvo: any = null;
@@ -93,37 +119,59 @@ export default function MapView({ filtros, mostrarPontos, buffer, onLoading }: P
     return () => m.setTarget(undefined);
   }, []);
 
-  // ---- recarrega os dados quando filtros/modo mudam ----
+  // ---- (re)define a funcao de carga sempre que os filtros mudam ----
   useEffect(() => {
-    let cancelado = false;
-    onLoading(true);
-    (async () => {
+    const recarrega = async () => {
+      const m = map.current; if (!m) return;
+      const view = m.getView();
+      const z = view.getZoom() ?? ZOOM_INICIAL;
+      const ext = transformExtent(view.calculateExtent(m.getSize()), "EPSG:3857", "EPSG:4326");
+      const bbox = ext.map((n) => n.toFixed(5)).join(",");
+      const id = ++reqId.current;
+      onLoading(true);
       try {
-        if (mostrarPontos) {
-          const fc = await apiPontos(filtros);
-          if (cancelado) return;
-          const feats = geojson.readFeatures(fc, { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" });
-          pts.current!.clear(); pts.current!.addFeatures(feats);
-          heat.current!.setVisible(false);
-          // enquadra a vista nos pontos carregados
-          if (feats.length) {
-            const ext = pts.current!.getExtent();
-            map.current!.getView().fit(ext, { padding: [60, 60, 120, 60], maxZoom: 14, duration: 300 });
-          }
-        } else {
-          const grid = await apiHeatmap(filtros);
-          if (cancelado) return;
-          const max = Math.max(1, ...grid.map((g) => g.n));
-          const feats = grid.map((g) => { const f = new Feature(new Point(fromLonLat([g.x, g.y]))); f.set("w", 0.25 + 0.75 * (g.n / max)); return f; });
+        if (z < ZOOM_PONTOS) {
+          // ----- HEATMAP -----
+          const grid = await apiHeatmap(filtros, { bbox, cell: cellPorZoom(z) });
+          if (id !== reqId.current) return;
+          const maxN = Math.max(1, ...grid.map((g) => g.n));
+          const feats = grid.map((g) => { const f = new Feature(new Point(fromLonLat([g.x, g.y]))); f.set("w", 0.25 + 0.75 * (g.n / maxN)); return f; });
           const hs = heat.current!.getSource()!; hs.clear(); hs.addFeatures(feats);
           heat.current!.setVisible(true);
           pts.current!.clear();
+        } else {
+          // ----- PONTOS / CLUSTERS -----
+          const fc = await apiPontos(filtros, { bbox });
+          if (id !== reqId.current) return;
+          const feats = geojson.readFeatures(fc, { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" });
+          pts.current!.clear(); pts.current!.addFeatures(feats);
+          heat.current!.setVisible(false);
         }
       } catch (e) { console.error(e); }
-      finally { if (!cancelado) onLoading(false); }
-    })();
-    return () => { cancelado = true; };
-  }, [filtros, mostrarPontos]);
+      finally { if (id === reqId.current) onLoading(false); }
+    };
+    carregaRef.current = recarrega;
+    recarrega(); // recarrega ao mudar qualquer filtro (tempo, natureza, toggle...)
+  }, [filtros]);
+
+  // ---- enquadra o mapa SO quando muda a cidade selecionada ----
+  useEffect(() => {
+    const chave = filtros.municipios.join("|");
+    if (chave === ultMun.current) return;
+    const primeiraVez = ultMun.current === "__inicial__";
+    ultMun.current = chave;
+    if (primeiraVez) return; // nao mexe na carga inicial
+    const m = map.current; if (!m) return;
+    if (!filtros.municipios.length) {
+      m.getView().animate({ center: SP_CENTRO, zoom: ZOOM_INICIAL, duration: 400 }); // voltou ao estado
+      return;
+    }
+    apiExtent(filtros.municipios).then((ext) => {
+      if (!ext) return;
+      const ext3857 = transformExtent(ext, "EPSG:4326", "EPSG:3857");
+      m.getView().fit(ext3857, { padding: [60, 60, 130, 60], maxZoom: 12, duration: 450 });
+    }).catch(console.error);
+  }, [filtros.municipios]);
 
   // ---- buffer ----
   useEffect(() => {

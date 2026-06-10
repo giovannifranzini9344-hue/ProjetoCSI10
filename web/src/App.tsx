@@ -87,8 +87,6 @@ export default function App() {
     try { setBuffer(await apiBuffer(municipios, raioKm)); } catch (e) { console.error(e); }
   };
 
-  const mostrarPontos = municipios.length > 0;
-
   return (
     <div className="app">
       <Sidebar
@@ -105,7 +103,7 @@ export default function App() {
       />
       <div className="map-wrap">
         {loading && <div className="loading">carregando…</div>}
-        <MapView filtros={filtros} mostrarPontos={mostrarPontos} buffer={buffer} onLoading={setLoading} />
+        <MapView filtros={filtros} buffer={buffer} onLoading={setLoading} />
         {periodos.length > 0 && (
           <TimeSlider periodos={periodos} index={index} setIndex={setIndex} modo={modo} setModo={setModo} playing={playing} setPlaying={setPlaying} />
         )}

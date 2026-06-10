@@ -42,13 +42,22 @@ function filtroBase(q: Q) {
   return { cond, p };
 }
 
-/** Filtro para o MAPA: exige geometria e respeita o toggle "sem local exato". */
+/** Filtro para o MAPA: exige geometria, respeita o toggle e a area visivel (bbox). */
 function filtroMapa(q: Q) {
   const { cond, p } = filtroBase(q);
   cond.push("geom IS NOT NULL");
   // Toggle desligado por padrao -> so coordenadas EXATAS. Ligado -> tambem os
   // centroides de bairro (que tem geom). Os "sem coordenada" nunca aparecem.
   if (!ehVerdadeiro(q.incluirSemLocal)) cond.push("precisao_geo = 'EXATA'");
+  // bbox = "minLon,minLat,maxLon,maxLat" (area visivel do mapa). Usa o indice
+  // espacial (operador &&) para trazer so o que esta na tela -> bem mais rapido.
+  if (q.bbox) {
+    const b = q.bbox.split(",").map(Number);
+    if (b.length === 4 && b.every((x) => Number.isFinite(x))) {
+      p.push(b[0], b[1], b[2], b[3]);
+      cond.push(`geom && ST_MakeEnvelope($${p.length - 3},$${p.length - 2},$${p.length - 1},$${p.length},4326)`);
+    }
+  }
   return { where: cond.length ? "WHERE " + cond.join(" AND ") : "", p };
 }
 
@@ -70,6 +79,20 @@ app.get("/api/municipios", async () => {
 app.get("/api/periodo", async () => {
   const r = await pool.query("SELECT min(ano*100+mes) AS min, max(ano*100+mes) AS max FROM ocorrencias WHERE ano IS NOT NULL");
   return r.rows[0];
+});
+
+// Caixa geografica (bbox) dos municipios selecionados — para o mapa enquadrar
+// automaticamente na cidade escolhida. Retorna [minLon,minLat,maxLon,maxLat].
+app.get("/api/extent", async (req) => {
+  const muns = lista((req.query as Q).municipios);
+  if (!muns.length) return null;
+  const r = await pool.query(
+    `SELECT ST_XMin(e) AS minx, ST_YMin(e) AS miny, ST_XMax(e) AS maxx, ST_YMax(e) AS maxy
+     FROM (SELECT ST_Extent(m.geom) e FROM municipios m
+           JOIN municipio_ssp_map x ON x.cod_ibge=m.cod_ibge
+           WHERE x.ssp_municipio = ANY($1)) t`, [muns]);
+  const row = r.rows[0];
+  return row && row.minx != null ? [row.minx, row.miny, row.maxx, row.maxy] : null;
 });
 
 // Pontos individuais (GeoJSON). Tem teto para nao travar o navegador.
