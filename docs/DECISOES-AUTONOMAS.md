@@ -47,4 +47,41 @@ Data de início da sessão autônoma: 2026-06-09.
 
 ---
 
+## D5 — Frontend: Vite + React + OpenLayers
+
+- **Escolha:** Vite (build rápido), React + TypeScript e OpenLayers (exigido no
+  projeto). Heatmap para a visão densa (estado) e **pontos clusterizados e
+  coloridos por natureza** quando um município é selecionado.
+- **Reverter:** a troca de camada (heatmap ↔ pontos) é controlada por um único
+  sinal (`mostrarPontos = há município selecionado`).
+
+## D6 — Sem React.StrictMode
+
+- **Contexto:** o StrictMode monta os componentes 2x em dev, o que reinicializava
+  o mapa do OpenLayers (biblioteca imperativa) e quebrava a tela.
+- **Escolha:** removido em `web/src/main.tsx`. Sem impacto em produção.
+- **Reverter:** reativar e, em vez disso, blindar o `useEffect` do mapa.
+
+## D7 — Visão inicial = heatmap estadual acumulado (todo o período)
+
+- **Contexto:** a especificação cita "2026" na abertura; optei por mostrar o
+  **heatmap de todo o período acumulado** (mais impactante e demonstra a densidade
+  geral). O usuário ajusta no slider/modo.
+- **Reverter:** em `web/src/App.tsx`, mudar o `index`/`modo` iniciais.
+
+## D8 — Layout desktop (sidebar 320px + mapa)
+
+- **Escolha:** layout para tela grande (sidebar fixa + mapa). Não foi feito um
+  layout responsivo para celular (fora do escopo do visualizador analítico).
+- **Reverter:** ajustar o grid em `web/src/styles.css`.
+
+## D9 — Buffer conta todas as ocorrências da área (sem filtro de tempo/natureza)
+
+- **Contexto:** a rota `/api/buffer` retorna o polígono e a contagem total dentro
+  da área; por ora não aplica os filtros de tempo/natureza àquela contagem.
+- **Reverter:** estender a query do buffer com os mesmos filtros (simples).
+
+---
+
 <!-- Próximas decisões serão acrescentadas abaixo conforme surgirem. -->
+
