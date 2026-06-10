@@ -1,0 +1,139 @@
+/**
+ * ============================================================================
+ *  API do Projeto CSI-10 (Fastify + PostGIS)
+ * ============================================================================
+ *  E a "ponte" (camada de logica) entre o frontend (mapa) e o banco. Recebe os
+ *  filtros do usuario, monta a consulta espacial e devolve os dados prontos:
+ *   - /api/naturezas   lista de tipos de crime (para os checkboxes e cores)
+ *   - /api/municipios  lista de cidades (para o filtro)
+ *   - /api/periodo     intervalo de tempo disponivel (para a barra do tempo)
+ *   - /api/pontos      pontos individuais (GeoJSON) da consulta filtrada
+ *   - /api/heatmap     densidade agregada (grade) para a visao estadual
+ *   - /api/stats       numeros do painel (conta TUDO, ate o que e oculto)
+ *   - /api/buffer      poligono do municipio + raio e contagem dentro
+ *
+ *  Rodar (dentro de "api", com o banco no ar): npm run dev
+ * ============================================================================
+ */
+import Fastify from "fastify";
+import cors from "@fastify/cors";
+import { pool } from "./db";
+
+const app = Fastify({ logger: true });
+app.register(cors, { origin: true }); // permite o frontend (outra porta) chamar a API
+
+// --------------------------------------------------------------------------
+// Helpers de filtro (montam o "WHERE" da consulta a partir dos parametros)
+// --------------------------------------------------------------------------
+type Q = Record<string, string | undefined>;
+const lista = (s?: string) => (s ? s.split(",").map((x) => x.trim()).filter(Boolean) : []);
+const ehVerdadeiro = (s?: string) => s === "true" || s === "1";
+
+/** Filtro comum (tempo + municipio + natureza), sem restricao de geometria. */
+function filtroBase(q: Q) {
+  const cond: string[] = [];
+  const p: any[] = [];
+  if (q.de) { p.push(Number(q.de)); cond.push(`(ano*100+mes) >= $${p.length}`); }   // de = AAAAMM
+  if (q.ate) { p.push(Number(q.ate)); cond.push(`(ano*100+mes) <= $${p.length}`); } // ate = AAAAMM
+  const muns = lista(q.municipios);
+  if (muns.length) { p.push(muns); cond.push(`municipio = ANY($${p.length})`); }
+  const nats = lista(q.naturezas);
+  if (nats.length) { p.push(nats); cond.push(`natureza = ANY($${p.length})`); }
+  return { cond, p };
+}
+
+/** Filtro para o MAPA: exige geometria e respeita o toggle "sem local exato". */
+function filtroMapa(q: Q) {
+  const { cond, p } = filtroBase(q);
+  cond.push("geom IS NOT NULL");
+  // Toggle desligado por padrao -> so coordenadas EXATAS. Ligado -> tambem os
+  // centroides de bairro (que tem geom). Os "sem coordenada" nunca aparecem.
+  if (!ehVerdadeiro(q.incluirSemLocal)) cond.push("precisao_geo = 'EXATA'");
+  return { where: cond.length ? "WHERE " + cond.join(" AND ") : "", p };
+}
+
+// --------------------------------------------------------------------------
+// Rotas
+// --------------------------------------------------------------------------
+app.get("/api/health", async () => ({ ok: true }));
+
+app.get("/api/naturezas", async () => {
+  const r = await pool.query("SELECT natureza, count(*)::int n FROM ocorrencias GROUP BY natureza ORDER BY n DESC");
+  return r.rows;
+});
+
+app.get("/api/municipios", async () => {
+  const r = await pool.query("SELECT municipio, count(*)::int n FROM ocorrencias WHERE municipio<>'' GROUP BY municipio ORDER BY n DESC");
+  return r.rows;
+});
+
+app.get("/api/periodo", async () => {
+  const r = await pool.query("SELECT min(ano*100+mes) AS min, max(ano*100+mes) AS max FROM ocorrencias WHERE ano IS NOT NULL");
+  return r.rows[0];
+});
+
+// Pontos individuais (GeoJSON). Tem teto para nao travar o navegador.
+app.get("/api/pontos", async (req) => {
+  const q = req.query as Q;
+  const { where, p } = filtroMapa(q);
+  const teto = Math.min(Number(q.limite) || 50000, 100000);
+  const r = await pool.query(
+    `SELECT ST_AsGeoJSON(geom)::json AS g, natureza, ano, mes, bairro, precisao_geo, centroide_fonte
+     FROM ocorrencias ${where} LIMIT ${teto + 1}`, p);
+  const truncado = r.rows.length > teto;
+  const features = r.rows.slice(0, teto).map((x) => ({
+    type: "Feature",
+    geometry: x.g,
+    properties: { natureza: x.natureza, ano: x.ano, mes: x.mes, bairro: x.bairro, precisao: x.precisao_geo, fonte: x.centroide_fonte },
+  }));
+  return { type: "FeatureCollection", truncado, features };
+});
+
+// Heatmap agregado: agrupa os pontos numa grade e devolve centro+contagem.
+app.get("/api/heatmap", async (req) => {
+  const q = req.query as Q;
+  const { where, p } = filtroMapa(q);
+  const cell = Math.max(0.005, Math.min(Number(q.cell) || 0.02, 0.5)); // graus (~0.02 = ~2 km)
+  const r = await pool.query(
+    `SELECT round((ST_X(geom)/${cell})::numeric)*${cell} AS x,
+            round((ST_Y(geom)/${cell})::numeric)*${cell} AS y, count(*)::int AS n
+     FROM ocorrencias ${where} GROUP BY x, y`, p);
+  return r.rows;
+});
+
+// Numeros do painel: conta TUDO que casa o filtro (inclusive os ocultos).
+app.get("/api/stats", async (req) => {
+  const q = req.query as Q;
+  const { cond, p } = filtroBase(q);
+  const where = cond.length ? "WHERE " + cond.join(" AND ") : "";
+  const r = await pool.query(
+    `SELECT count(*)::int total,
+            count(*) FILTER (WHERE precisao_geo='EXATA')::int exata,
+            count(*) FILTER (WHERE precisao_geo='CENTROIDE_BAIRRO')::int centroide_bairro,
+            count(*) FILTER (WHERE geom IS NULL)::int sem_coordenada
+     FROM ocorrencias ${where}`, p);
+  return r.rows[0];
+});
+
+// Buffer: poligono do(s) municipio(s) expandido em raioKm + contagem dentro.
+app.get("/api/buffer", async (req, reply) => {
+  const q = req.query as Q;
+  const muns = lista(q.municipios);
+  const raio = Math.max(0, Math.min(Number(q.raioKm) || 15, 100));
+  if (!muns.length) return reply.code(400).send({ error: "informe ?municipios=" });
+  const r = await pool.query(
+    `WITH area AS (
+       SELECT ST_Buffer(ST_Union(m.geom)::geography, $2*1000)::geometry AS g
+       FROM municipios m JOIN municipio_ssp_map x ON x.cod_ibge=m.cod_ibge
+       WHERE x.ssp_municipio = ANY($1))
+     SELECT ST_AsGeoJSON(g)::json AS poligono,
+            (SELECT count(*)::int FROM ocorrencias o, area
+             WHERE o.geom && area.g AND ST_Intersects(o.geom, area.g)) AS total
+     FROM area`, [muns, raio]);
+  return r.rows[0] || { poligono: null, total: 0 };
+});
+
+const PORT = Number(process.env.PORT) || 3001;
+app.listen({ port: PORT, host: "0.0.0.0" })
+  .then(() => app.log.info(`API ouvindo em http://localhost:${PORT}`))
+  .catch((e) => { app.log.error(e); process.exit(1); });
