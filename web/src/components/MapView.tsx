@@ -134,9 +134,17 @@ export default function MapView({ filtros, buffer, onLoading }: Props) {
           // ----- HEATMAP -----
           const grid = await apiHeatmap(filtros, { bbox, cell: cellPorZoom(z) });
           if (id !== reqId.current) return;
-          const maxN = Math.max(1, ...grid.map((g) => g.n));
-          const feats = grid.map((g) => { const f = new Feature(new Point(fromLonLat([g.x, g.y]))); f.set("w", 0.25 + 0.75 * (g.n / maxN)); return f; });
+          // Referencia de intensidade = percentil alto das celulas VISIVEIS (nao a
+          // celula mais quente, que poderia ser um outlier). Assim a "temperatura"
+          // sempre se ajusta a area que esta sendo exibida.
+          const counts = grid.map((g) => g.n).sort((a, b) => a - b);
+          const refN = Math.max(1, counts.length ? counts[Math.floor(counts.length * 0.95)] : 1);
+          const feats = grid.map((g) => { const f = new Feature(new Point(fromLonLat([g.x, g.y]))); f.set("w", Math.min(1, g.n / refN)); return f; });
           const hs = heat.current!.getSource()!; hs.clear(); hs.addFeatures(feats);
+          // Raio/desfoque crescem com o zoom -> superficie continua (sem "pontilhado").
+          const raio = Math.max(8, Math.min(34, Math.round(8 + (z - 7) * 4.5)));
+          heat.current!.setRadius(raio);
+          heat.current!.setBlur(Math.round(raio * 1.3));
           heat.current!.setVisible(true);
           pts.current!.clear();
         } else {
