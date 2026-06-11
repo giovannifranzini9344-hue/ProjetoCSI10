@@ -64,7 +64,7 @@ function filtroMapa(q: Q) {
 // --------------------------------------------------------------------------
 // Rotas
 // --------------------------------------------------------------------------
-app.get("/api/health", async () => ({ ok: true }));
+app.get("/api/health", async () => ({ ok: true, versao: "ci-1" }));
 
 app.get("/api/naturezas", async () => {
   const r = await pool.query("SELECT natureza, count(*)::int n FROM ocorrencias GROUP BY natureza ORDER BY n DESC");
