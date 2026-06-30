@@ -1,0 +1,223 @@
+\documentclass[reprint,amsmath,amssymb,aps,prl,floatfix,onecolumn]{revtex4-2}
+\usepackage[brazilian]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{bm}
+\usepackage{color}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{longtable}
+
+% ============================================================================
+%  NOTAS DE EDICAO (apagaveis de uma vez so)
+%  --------------------------------------------------------------------------
+%  As notas em AMARELO (\nota{...}) e os placeholders de print (\missingfigure)
+%  servem so de guia para voce e sua dupla. Para gerar a VERSAO FINAL limpa
+%  (sem nenhuma nota nem caixa de print), basta trocar a linha abaixo por:
+%        \usepackage[disable]{todonotes}
+%  Com [disable], TODAS as notas e placeholders somem do PDF automaticamente.
+% ============================================================================
+\usepackage{todonotes}
+\newcommand{\nota}[1]{\todo[inline,color=yellow!55,bordercolor=orange,size=\small]{\textbf{NOTA:} #1}}
+
+\begin{document}
+
+% A capa e opcional; e o seu arquivo capa.tex (suba-o junto no Overleaf).
+% \input{capa.tex}
+
+\title{Visualizador Georreferenciado de Segurança Pública do Estado de São Paulo}
+\author{Giovanni Monteiro Franzini}
+\email{monteirogmf@ita.br}
+\affiliation{Instituto Tecnológico de Aeronáutica, São José dos Campos, Brasil}
+\date{\today}
+
+\begin{abstract}
+\textit{Este trabalho apresenta um visualizador web interativo de dados georreferenciados
+para a análise estatística e espaço-temporal das ocorrências criminais no Estado de São Paulo,
+no período de janeiro de 2022 a abril de 2026, a partir dos dados abertos oficiais da Secretaria
+de Segurança Pública do Estado de São Paulo (SSP-SP). A aplicação, construída com OpenLayers,
+React e um banco de dados espacial PostgreSQL/PostGIS, processa cerca de 5,17 milhões de registros
+e os disponibiliza por meio de mapa de calor, agrupamento por tipo de crime, navegação temporal e
+ferramentas de análise de vizinhança (buffer), mantendo uma abordagem estritamente estatística e
+neutra.}
+\end{abstract}
+
+\maketitle
+
+\nota{Confiram o nome da dupla (incluir o(a) colega no \texttt{\textbackslash author}) e o e-mail. O nome do arquivo final, conforme a professora, deve seguir o padrão \texttt{NomeApp\_Relatorio.pdf} -- escolham um nome curto para o app.}
+
+% ============================================================================
+\section{Declaração de Uso de Inteligência Artificial}
+% ============================================================================
+Declaro que foi feito uso de Inteligência Artificial (assistente Claude) na realização deste
+trabalho, de forma detalhada nas seguintes frentes: (i) geração e revisão do código dos
+\textit{scripts} de extração, limpeza e carga dos dados (ETL), da API \textit{backend} e do
+\textit{frontend} do visualizador; (ii) apoio às decisões de arquitetura de \textit{software}
+(escolha do padrão de três camadas, do banco espacial e das estratégias de renderização);
+(iii) automação do processo de publicação na nuvem (\textit{deploy}); (iv) diagnóstico e correção
+de erros; e (v) estruturação e aprimoramento textual desta documentação. Todo o conteúdo gerado foi
+\textbf{conferido, testado e validado} pelos autores, que mantiveram o controle sobre o escopo, as
+decisões e a verificação dos resultados.
+
+\nota{Ajustem este parágrafo para refletir exatamente o que vocês fizeram manualmente vs. o que foi assistido por IA, conforme a honestidade de cada um. A professora pede a descrição detalhada do uso.}
+
+% ============================================================================
+\section{Visão Geral do Visualizador}
+% ============================================================================
+
+\subsection{Área de Aplicação e Motivação}
+A área de aplicação escolhida foi a \textbf{Segurança Pública}. A motivação central é transformar
+os boletins de ocorrência brutos, disponibilizados em planilhas pela SSP-SP, em uma ferramenta
+visual e interativa que permita compreender a \textbf{dinâmica espacial e a evolução temporal} das
+manchas criminais no Estado de São Paulo, evidenciando tendências e o possível deslocamento da
+criminalidade ao longo dos anos. Em conformidade com as instruções da disciplina, adotou-se uma
+abordagem \textbf{estritamente estatística e neutra}, focada no dado e no padrão espacial, sem
+qualquer análise política ou social.
+
+\subsection{O que é Visualizado}
+A aplicação exibe, sobre um mapa do Estado de São Paulo, a localização das ocorrências criminais.
+A visualização é adaptativa: em escala estadual, apresenta um \textbf{mapa de calor} (densidade);
+ao aproximar, transiciona para \textbf{pontos individuais agrupados (clusters) coloridos por
+natureza criminal}. O usuário pode navegar no tempo (mês a mês, de jan/2022 a abr/2026), filtrar
+por município e por tipo de crime, e delimitar áreas de vizinhança. O foco de contingência do
+estudo é o município de \textbf{São José dos Campos}.
+
+% ============================================================================
+\section{Os Dados}
+% ============================================================================
+
+\subsection{Fontes dos Dados}
+Os dados utilizados são oriundos de fontes oficiais e abertas:
+\begin{itemize}
+  \item \textbf{Ocorrências criminais:} planilhas de boletins de ocorrência da Secretaria de
+  Segurança Pública do Estado de São Paulo (SSP-SP)~\cite{ssp}, recorte de jan/2022 a abr/2026.
+  \item \textbf{Malha municipal:} limites territoriais dos 645 municípios de SP, obtidos via API do
+  Instituto Brasileiro de Geografia e Estatística (IBGE)~\cite{ibge}.
+  \item \textbf{Centroides de bairro:} coordenadas de bairros obtidas do projeto colaborativo
+  OpenStreetMap (via Overpass e Nominatim)~\cite{osm}, para georreferenciar ocorrências sem
+  coordenada exata.
+\end{itemize}
+
+\subsection{Tratamento dos Dados (ETL)}
+As planilhas brutas (cerca de 5,17 milhões de registros, $\sim$1,87 GB) passaram por um processo de
+\textit{ETL} (Extração, Transformação e Carga) que tratou anomalias reais encontradas na base:
+codificação de caracteres distinta entre os anos, nomes de colunas que mudam ao longo do tempo,
+campos com separadores embutidos, coordenadas inválidas e registros sob sigilo legal. A
+geolocalização final foi distribuída em três níveis de precisão, resumidos na Tabela~\ref{tab:cobertura}.
+
+\begin{table}[H]
+\centering
+\caption{Cobertura geográfica final das ocorrências.}
+\label{tab:cobertura}
+\begin{tabular}{lcc}
+\hline
+\textbf{Categoria} & \textbf{Ocorrências} & \textbf{\%} \\ \hline
+Coordenada exata (original)        & 3.706.674 & 71,7\% \\
+Aproximado (centroide de bairro)   & 845.217   & 16,4\% \\
+Sem coordenada (oculto no mapa)    & 616.211   & 11,9\% \\ \hline
+\textbf{Total}                     & \textbf{5.168.102} & \textbf{100\%} \\ \hline
+\end{tabular}
+\end{table}
+\nota{Se quiserem, posso detalhar mais o ETL (encoding misto, fuzzy, etc.) -- decidam o nível de profundidade adequado ao relatório.}
+
+% ============================================================================
+\section{A Interface do Visualizador}
+% ============================================================================
+A seguir, descrevem-se os principais elementos da interface, acompanhados de capturas de tela.
+
+\missingfigure[figwidth=0.8\linewidth]{PRINT: tela inicial do visualizador (heatmap estadual). Capturar a visão geral com a barra lateral.}
+
+\subsection{Mapa de Calor e Renderização Adaptativa}
+Na visão estadual, a densidade de ocorrências é representada por um mapa de calor cuja escala de
+intensidade se ajusta à área exibida. Ao aproximar (zoom), o sistema transiciona automaticamente
+para pontos individuais agrupados em \textit{clusters}, coloridos segundo a natureza criminal.
+
+\missingfigure[figwidth=0.8\linewidth]{PRINT: visão aproximada de uma cidade mostrando os clusters coloridos por natureza.}
+
+\subsection{Controle Temporal}
+Uma barra inferior permite navegar no tempo, com reprodução automática (\textit{play}) e dois modos:
+\textbf{Atual} (exibe apenas o mês selecionado) e \textbf{Acumulado} (exibe o intervalo entre um
+mês inicial e um final, ambos escolhidos pelo usuário).
+
+\missingfigure[figwidth=0.7\linewidth]{PRINT: a barra do tempo, destacando os dois cursores (início e fim) no modo Acumulado.}
+
+\subsection{Filtros e Ferramenta de Buffer}
+A barra lateral oferece filtros por município e por natureza criminal (agrupada por famílias de
+cores), além de um botão para incluir as ocorrências de localização aproximada. A ferramenta de
+\textbf{buffer} permite expandir a análise para uma área de vizinhança (município + raio em km):
+por exemplo, São José dos Campos com 15~km de raio passa a abranger cidades vizinhas como Jacareí.
+
+\missingfigure[figwidth=0.8\linewidth]{PRINT: a ferramenta de buffer aplicada (contorno da área e ocorrências da vizinhança).}
+
+\subsection{Interatividade}
+Ao clicar em um ponto, um balão (\textit{popup}) exibe os metadados da ocorrência: mês/ano,
+natureza criminal e o nível de precisão geográfica (localização exata ou aproximada).
+
+\missingfigure[figwidth=0.6\linewidth]{PRINT: um popup aberto sobre uma ocorrência.}
+
+% ============================================================================
+\section{Arquitetura e Ferramentas}
+% ============================================================================
+A aplicação adota o padrão \textbf{Web GIS de três camadas}: uma camada de apresentação (frontend),
+uma de lógica (API) e uma de dados (banco espacial), conteinerizadas com Docker. A
+Tabela~\ref{tab:ferramentas} lista as ferramentas utilizadas, com suas versões, conforme exigido.
+
+\begin{table}[H]
+\centering
+\caption{Ferramentas utilizadas e respectivas versões.}
+\label{tab:ferramentas}
+\begin{tabular}{lll}
+\hline
+\textbf{Camada} & \textbf{Ferramenta} & \textbf{Versão} \\ \hline
+Banco de dados   & PostgreSQL          & 16 \\
+                 & PostGIS             & 3.4 \\
+ETL / Backend    & Node.js             & 22 \\
+                 & TypeScript          & 5.7 \\
+                 & Fastify             & 5 \\
+Frontend         & React               & 18 \\
+                 & OpenLayers          & 10 \\
+                 & Vite                & 5 \\
+Infraestrutura   & Docker / Compose    & --- \\
+                 & Caddy               & 2 \\
+                 & Nginx               & 1.x \\
+Hospedagem       & Google Cloud (Compute Engine, Ubuntu) & 24.04 \\
+Entrega contínua & GitHub Actions      & --- \\ \hline
+\end{tabular}
+\end{table}
+\nota{Confiram/atualizem as versões exatas se desejarem precisão máxima (estão nos arquivos \texttt{package.json}). A professora pede explicitamente as versões das ferramentas.}
+
+\subsection{Hospedagem e Publicação}
+Toda a aplicação (banco, API e frontend) executa em uma máquina virtual no Google Cloud, com cada
+serviço em um \textit{container} Docker. O código é versionado no GitHub e a publicação é
+automatizada: a cada envio de código, uma esteira de integração contínua (GitHub Actions) atualiza
+o servidor automaticamente. O acesso é feito por endereço seguro (HTTPS).
+
+\missingfigure[figwidth=0.85\linewidth]{PRINT (opcional): diagrama da arquitetura. Pode ser exportado do documento HTML "Como funciona".}
+
+% ============================================================================
+\section{Considerações Finais}
+% ============================================================================
+O projeto demonstrou a viabilidade de transformar uma base oficial massiva e heterogênea em uma
+ferramenta de apoio à decisão, visual e interativa, mantendo rigor estatístico. O maior desafio
+técnico residiu no tratamento dos dados brutos -- a etapa de ETL --, evidenciando a habitual
+dissonância entre os formatos fornecidos pelos órgãos oficiais e a estrutura ideal para um Sistema
+de Informação Geográfica. A solução adotada para a geolocalização, que preserva a transparência
+estatística sem distorcer a leitura espacial do mapa, ilustra esse tipo de decisão de engenharia.
+
+\nota{Espaço para comentários finais da dupla: aprendizados, dificuldades, possíveis evoluções futuras.}
+
+\begin{thebibliography}{99}
+\bibitem{ssp}
+SECRETARIA DE SEGURANÇA PÚBLICA DO ESTADO DE SÃO PAULO (SSP-SP). \textbf{Dados Abertos -- Estatísticas}.
+Disponível em: \url{https://www.ssp.sp.gov.br/estatistica/consultas}. Acesso em: \today.
+
+\bibitem{ibge}
+INSTITUTO BRASILEIRO DE GEOGRAFIA E ESTATÍSTICA (IBGE). \textbf{Malhas Territoriais Municipais}.
+Disponível em: \url{https://servicodados.ibge.gov.br/api/docs/malhas}. Acesso em: \today.
+
+\bibitem{osm}
+OPENSTREETMAP. \textbf{Dados geográficos colaborativos (Overpass / Nominatim)}.
+Disponível em: \url{https://www.openstreetmap.org}. Acesso em: \today.
+\end{thebibliography}
+
+\end{document}

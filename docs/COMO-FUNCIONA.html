@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Como o nosso projeto funciona — explicado do zero</title>
+<style>
+  :root { --azul:#2f5fd0; --verde:#2e7d32; --laranja:#e65100; --roxo:#6a1b9a; --cinza:#5b6472; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:#1d2230; line-height:1.65; background:#f6f7f9; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 28px 22px 80px; }
+  header.capa { background: linear-gradient(135deg,#1b2a4a,#2f5fd0); color:#fff; padding:38px 22px; }
+  header.capa .inner { max-width:920px; margin:0 auto; }
+  header.capa h1 { margin:0 0 6px; font-size:28px; }
+  header.capa p { margin:0; opacity:.9; }
+  h2 { font-size:22px; margin:38px 0 10px; padding-top:10px; border-top:2px solid #e3e6ec; color:#1b2a4a; }
+  h3 { font-size:17px; margin:22px 0 6px; color:#2f3a52; }
+  p, li { font-size:15.5px; }
+  code { background:#eef0f4; padding:1px 6px; border-radius:5px; font-size:13.5px; color:#b23; }
+  .lead { font-size:17px; color:#39435a; }
+  .card { background:#fff; border:1px solid #e3e6ec; border-radius:12px; padding:16px 18px; margin:14px 0; }
+  .nota { background:#fff8e1; border-left:4px solid #f6b100; padding:10px 14px; border-radius:8px; margin:12px 0; font-size:14.5px; }
+  .glos dt { font-weight:600; margin-top:10px; color:#1b2a4a; }
+  .glos dd { margin:2px 0 0; color:#39435a; }
+  table { border-collapse:collapse; width:100%; margin:12px 0; font-size:14px; }
+  th,td { border:1px solid #e3e6ec; padding:7px 9px; text-align:left; }
+  th { background:#eef1f7; }
+  .toc a { color:var(--azul); text-decoration:none; }
+  .toc li { margin:3px 0; }
+  svg { max-width:100%; height:auto; display:block; margin:8px auto; }
+  .legenda { text-align:center; font-size:13px; color:var(--cinza); margin-top:-2px; }
+  .pill { display:inline-block; font-size:12px; padding:1px 8px; border-radius:999px; background:#eef1f7; color:#2f3a52; }
+</style>
+</head>
+<body>
+<header class="capa"><div class="inner">
+  <h1>Como o nosso projeto funciona</h1>
+  <p>Explicado do zero — sem assumir nenhum conhecimento prévio. Projeto CSI-10 (ITA).</p>
+</div></header>
+
+<div class="wrap">
+
+<p class="lead">Este documento explica, em linguagem simples, <strong>o que é cada parte</strong> do nosso
+projeto, <strong>onde cada coisa fica hospedada</strong> e <strong>como o código sai do GitHub e vira o
+site no ar</strong>. Cada termo técnico é explicado na primeira vez que aparece (e há um glossário no fim).</p>
+
+<div class="card toc">
+  <strong>Índice</strong>
+  <ol>
+    <li><a href="#oque">O que é, em uma frase</a></li>
+    <li><a href="#pecas">A grande imagem: as 4 peças</a></li>
+    <li><a href="#hospedagem">Onde tudo mora (a hospedagem)</a></li>
+    <li><a href="#banco">O banco de dados</a></li>
+    <li><a href="#etl">O ETL — preparar os dados</a></li>
+    <li><a href="#api">A API — o "garçom"</a></li>
+    <li><a href="#frontend">O frontend — o mapa que você vê</a></li>
+    <li><a href="#deploy">Do GitHub ao site (deploy automático)</a></li>
+    <li><a href="#tec">Tecnologias e versões</a></li>
+    <li><a href="#glossario">Glossário</a></li>
+  </ol>
+</div>
+
+<h2 id="oque">1. O que é, em uma frase</h2>
+<p>É um <strong>site de mapa</strong> que mostra, de forma visual e estatística, <strong>onde e quando</strong>
+aconteceram as ocorrências criminais no Estado de São Paulo (2022–2026), usando os <strong>dados abertos
+oficiais da SSP-SP</strong> (Secretaria de Segurança Pública). São <strong>5,17 milhões</strong> de registros.</p>
+
+<h2 id="pecas">2. A grande imagem: as 4 peças</h2>
+<p>Pense num <strong>restaurante</strong>. Quatro peças trabalham juntas:</p>
+
+<svg viewBox="0 0 880 230" role="img" aria-label="Diagrama das quatro peças">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#5b6472"/></marker></defs>
+  <rect x="20" y="70" width="180" height="80" rx="10" fill="#fff" stroke="#2f5fd0" stroke-width="2"/>
+  <text x="110" y="100" text-anchor="middle" font-weight="700" font-size="15">Frontend</text>
+  <text x="110" y="122" text-anchor="middle" font-size="12.5" fill="#5b6472">o mapa (o "salão")</text>
+  <rect x="250" y="70" width="180" height="80" rx="10" fill="#fff" stroke="#2e7d32" stroke-width="2"/>
+  <text x="340" y="100" text-anchor="middle" font-weight="700" font-size="15">API</text>
+  <text x="340" y="122" text-anchor="middle" font-size="12.5" fill="#5b6472">o "garçom"</text>
+  <rect x="480" y="70" width="180" height="80" rx="10" fill="#fff" stroke="#6a1b9a" stroke-width="2"/>
+  <text x="570" y="100" text-anchor="middle" font-weight="700" font-size="15">Banco de dados</text>
+  <text x="570" y="122" text-anchor="middle" font-size="12.5" fill="#5b6472">a "despensa"</text>
+  <rect x="700" y="70" width="160" height="80" rx="10" fill="#fff8e1" stroke="#e65100" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="780" y="100" text-anchor="middle" font-weight="700" font-size="15">ETL</text>
+  <text x="780" y="122" text-anchor="middle" font-size="12.5" fill="#5b6472">o "preparo"</text>
+  <line x1="202" y1="103" x2="248" y2="103" stroke="#5b6472" stroke-width="1.5" marker-start="url(#a)" marker-end="url(#a)"/>
+  <line x1="432" y1="103" x2="478" y2="103" stroke="#5b6472" stroke-width="1.5" marker-start="url(#a)" marker-end="url(#a)"/>
+  <line x1="700" y1="125" x2="662" y2="125" stroke="#5b6472" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="110" y="180" text-anchor="middle" font-size="12" fill="#5b6472">o que abre no navegador</text>
+  <text x="340" y="180" text-anchor="middle" font-size="12" fill="#5b6472">recebe pedidos e responde</text>
+  <text x="570" y="180" text-anchor="middle" font-size="12" fill="#5b6472">guarda os 5,17 milhões</text>
+  <text x="780" y="180" text-anchor="middle" font-size="12" fill="#5b6472">enche a despensa (1x)</text>
+</svg>
+<p class="legenda">As 4 peças. As 3 primeiras ficam no ar o tempo todo; o ETL roda só de vez em quando, para preparar os dados.</p>
+
+<ul>
+  <li><strong>Frontend (o salão):</strong> é a única parte que você vê. É o mapa, os filtros, a barra do tempo. Abre no seu navegador.</li>
+  <li><strong>API (o garçom):</strong> fica entre o mapa e o banco. O mapa nunca fala direto com o banco; ele faz um <em>pedido</em> ("me dê os furtos de 2024 em SJC") e o garçom traz a resposta.</li>
+  <li><strong>Banco de dados (a despensa):</strong> guarda os milhões de registros já organizados e responde perguntas geográficas muito rápido.</li>
+  <li><strong>ETL (o preparo, antes do restaurante abrir):</strong> pega as planilhas cruas da SSP-SP, limpa, organiza e enche a despensa. Roda <strong>uma vez</strong> (ou quando trocamos os dados) — não fica no ar.</li>
+</ul>
+
+<h2 id="hospedagem">3. Onde tudo mora (a hospedagem)</h2>
+<p>Tudo roda numa <strong>única máquina virtual</strong> (uma "VM") no <strong>Google Cloud</strong>. Uma VM é um
+computador que não existe fisicamente na sua mesa: é alugado na nuvem e fica ligado 24 horas, com um endereço
+na internet. Dentro dessa VM, cada peça roda dentro de um <strong>container Docker</strong> — uma "caixinha"
+isolada que já vem com tudo que aquela peça precisa para funcionar igual em qualquer lugar.</p>
+
+<svg viewBox="0 0 880 250" role="img" aria-label="Diagrama da hospedagem">
+  <rect x="20" y="20" width="840" height="210" rx="14" fill="#eef1f7" stroke="#2f5fd0" stroke-width="2"/>
+  <text x="40" y="45" font-weight="700" font-size="14" fill="#1b2a4a">VM no Google Cloud — Ubuntu 24.04 · IP 34.39.181.38</text>
+  <rect x="40" y="60" width="180" height="150" rx="10" fill="#fff" stroke="#9aa3b2"/>
+  <text x="130" y="85" text-anchor="middle" font-weight="700" font-size="13.5">Caddy</text>
+  <text x="130" y="105" text-anchor="middle" font-size="11.5" fill="#5b6472">porta 80/443</text>
+  <text x="130" y="122" text-anchor="middle" font-size="11.5" fill="#5b6472">faz o HTTPS 🔒</text>
+  <rect x="240" y="60" width="180" height="150" rx="10" fill="#fff" stroke="#6a1b9a"/>
+  <text x="330" y="85" text-anchor="middle" font-weight="700" font-size="13.5">web</text>
+  <text x="330" y="105" text-anchor="middle" font-size="11.5" fill="#5b6472">Nginx + site React</text>
+  <rect x="440" y="60" width="180" height="150" rx="10" fill="#fff" stroke="#2e7d32"/>
+  <text x="530" y="85" text-anchor="middle" font-weight="700" font-size="13.5">api</text>
+  <text x="530" y="105" text-anchor="middle" font-size="11.5" fill="#5b6472">Node.js / Fastify</text>
+  <rect x="640" y="60" width="200" height="150" rx="10" fill="#fff" stroke="#1b2a4a"/>
+  <text x="740" y="85" text-anchor="middle" font-weight="700" font-size="13.5">db</text>
+  <text x="740" y="105" text-anchor="middle" font-size="11.5" fill="#5b6472">PostgreSQL + PostGIS</text>
+  <text x="740" y="122" text-anchor="middle" font-size="11.5" fill="#5b6472">os 5,17 milhões</text>
+  <text x="130" y="175" text-anchor="middle" font-size="22">🌐</text>
+  <text x="330" y="175" text-anchor="middle" font-size="22">⚛️</text>
+  <text x="530" y="175" text-anchor="middle" font-size="22">🍽️</text>
+  <text x="740" y="175" text-anchor="middle" font-size="22">🐘</text>
+</svg>
+<p class="legenda">4 containers Docker dentro da mesma VM. Só o Caddy é exposto à internet; o banco fica protegido na rede interna.</p>
+
+<div class="nota">📌 <strong>Por que numa VM única?</strong> Os planos gratuitos de banco na nuvem (≈0,5 GB)
+não caberiam os 5,17 milhões de linhas. Uma VM (no crédito de testes de 90 dias do Google Cloud) cabe tudo,
+de graça e num só lugar.</div>
+
+<h2 id="banco">4. O banco de dados</h2>
+<p>Usamos o <strong>PostgreSQL</strong> (um dos bancos de dados mais usados do mundo) com a extensão
+<strong>PostGIS</strong>, que dá a ele "superpoderes geográficos": ele sabe calcular coisas como "quais
+ocorrências estão dentro de São José dos Campos + 15 km" usando matemática de mapas, em milissegundos.</p>
+<ul>
+  <li><strong>Onde está:</strong> dentro do container <code>db</code>, na VM do Google Cloud.</li>
+  <li><strong>O que guarda:</strong> a tabela <code>ocorrencias</code> (5.168.102 linhas: cidade, bairro, tipo de
+  crime, mês/ano e a posição no mapa) e a tabela <code>municipios</code> (os 645 contornos das cidades de SP,
+  baixados do IBGE — usados no filtro e no buffer).</li>
+</ul>
+
+<h2 id="etl">5. O ETL — preparar os dados (pasta <code>etl/</code>)</h2>
+<p>ETL = <em>Extract, Transform, Load</em> (Extrair, Transformar, Carregar). É a "cozinha" que transforma as
+planilhas bagunçadas da SSP-SP em dados limpos no banco. São scripts escritos em <strong>TypeScript</strong>
+(uma versão do JavaScript com tipos, rodando no <strong>Node.js</strong>). Cada um faz uma coisa:</p>
+<table>
+  <tr><th>Script</th><th>O que faz</th></tr>
+  <tr><td><code>index.ts</code></td><td>Lê as 9 planilhas semestrais (Jan/2022–Abr/2026), conserta a codificação (acentos), unifica colunas que mudam de nome a cada ano, trata coordenadas inválidas e gera um arquivo limpo (<code>ocorrencias_limpas.csv</code>).</td></tr>
+  <tr><td><code>load.ts</code></td><td>Carrega esse arquivo limpo no banco (comando <code>COPY</code>, o jeito mais rápido de inserir milhões de linhas) e cria os índices.</td></tr>
+  <tr><td><code>municipios.ts</code></td><td>Baixa do IBGE os 645 contornos das cidades de SP e grava na tabela <code>municipios</code>.</td></tr>
+  <tr><td><code>centroides_bairro.ts</code></td><td>Para as ocorrências sem coordenada exata, busca o centro do bairro no <strong>OpenStreetMap</strong> (e no Nominatim) e preenche a posição — sem nunca jogar tudo no centro da cidade (evita "falso ponto quente").</td></tr>
+</table>
+<p>Resultado: <strong>88%</strong> das ocorrências ficam plotáveis no mapa; o que não casa fica oculto (mas continua contado nos números).</p>
+
+<h2 id="api">6. A API — o "garçom" (pasta <code>api/</code>)</h2>
+<p>É um programa em <strong>Node.js</strong> usando o framework <strong>Fastify</strong>. Ele fica "de plantão"
+esperando pedidos do mapa e, para cada pedido, monta uma consulta ao banco e devolve só os dados certos. As
+principais "portas" (rotas) são:</p>
+<table>
+  <tr><th>Rota</th><th>Para que serve</th></tr>
+  <tr><td><code>/api/heatmap</code></td><td>Devolve a densidade (mapa de calor) da área visível.</td></tr>
+  <tr><td><code>/api/pontos</code></td><td>Devolve os pontos individuais (quando se dá zoom).</td></tr>
+  <tr><td><code>/api/stats</code></td><td>Os números do painel (total, exatos, etc.).</td></tr>
+  <tr><td><code>/api/buffer</code> e <code>/api/extent</code></td><td>A área de vizinhança (cidade + raio) e o enquadramento do mapa.</td></tr>
+  <tr><td><code>/api/naturezas</code>, <code>/api/municipios</code>, <code>/api/periodo</code></td><td>Listas para os filtros e a barra do tempo.</td></tr>
+</table>
+
+<h2 id="frontend">7. O frontend — o mapa que você vê (pasta <code>web/</code>)</h2>
+<p>É o site em si, escrito em <strong>React</strong> (uma biblioteca para montar telas) com <strong>TypeScript</strong>,
+e usa o <strong>OpenLayers</strong> — uma biblioteca especializada em <strong>desenhar mapas</strong>. As partes:</p>
+<table>
+  <tr><th>Arquivo</th><th>O que faz</th></tr>
+  <tr><td><code>MapView.tsx</code></td><td>O mapa em si: mapa de calor, pontos coloridos por tipo de crime, popups e o buffer.</td></tr>
+  <tr><td><code>Sidebar.tsx</code></td><td>A barra lateral: filtros de cidade e de natureza, números e legenda.</td></tr>
+  <tr><td><code>TimeSlider.tsx</code></td><td>A barra do tempo embaixo (play, início e fim do período).</td></tr>
+  <tr><td><code>App.tsx</code></td><td>O "maestro": guarda o estado e liga tudo.</td></tr>
+</table>
+<div class="nota">🗺️ <strong>Detalhe sobre o OpenStreetMap:</strong> ele aparece em dois papéis. As <em>imagens</em>
+do mapa base (as ruas) são "ladrilhos" do OpenStreetMap. E os <em>dados</em> do OpenStreetMap (a base de bairros
+nomeados) foram usados no ETL para achar os centros dos bairros. Mesma fonte, usos diferentes.</div>
+
+<h2 id="deploy">8. Do GitHub ao site (deploy automático)</h2>
+<p>O <strong>GitHub</strong> é onde o código fica guardado na nuvem (e onde a dupla colabora). Configuramos um
+<strong>deploy automático</strong> (CI/CD): toda vez que alguém envia uma mudança (<code>git push</code>), uma
+"esteira" (GitHub Actions) atualiza o site sozinha, em ~1–2 minutos.</p>
+
+<svg viewBox="0 0 880 150" role="img" aria-label="Diagrama do deploy">
+  <defs><marker id="b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#2f5fd0"/></marker></defs>
+  <rect x="20" y="45" width="170" height="60" rx="10" fill="#fff" stroke="#9aa3b2"/><text x="105" y="72" text-anchor="middle" font-weight="700" font-size="13">edita o código</text><text x="105" y="90" text-anchor="middle" font-size="11.5" fill="#5b6472">git commit</text>
+  <rect x="240" y="45" width="170" height="60" rx="10" fill="#fff" stroke="#9aa3b2"/><text x="325" y="72" text-anchor="middle" font-weight="700" font-size="13">git push</text><text x="325" y="90" text-anchor="middle" font-size="11.5" fill="#5b6472">envia ao GitHub</text>
+  <rect x="460" y="45" width="190" height="60" rx="10" fill="#fff" stroke="#2f5fd0"/><text x="555" y="72" text-anchor="middle" font-weight="700" font-size="13">GitHub Action</text><text x="555" y="90" text-anchor="middle" font-size="11.5" fill="#5b6472">esteira automática</text>
+  <rect x="700" y="45" width="160" height="60" rx="10" fill="#e8f5e9" stroke="#2e7d32"/><text x="780" y="72" text-anchor="middle" font-weight="700" font-size="13">site no ar</text><text x="780" y="90" text-anchor="middle" font-size="11.5" fill="#5b6472">VM atualizada</text>
+  <line x1="192" y1="75" x2="238" y2="75" stroke="#2f5fd0" stroke-width="2" marker-end="url(#b)"/>
+  <line x1="412" y1="75" x2="458" y2="75" stroke="#2f5fd0" stroke-width="2" marker-end="url(#b)"/>
+  <line x1="652" y1="75" x2="698" y2="75" stroke="#2f5fd0" stroke-width="2" marker-end="url(#b)"/>
+</svg>
+<p class="legenda">A Action conecta na VM (via SSH), envia o código novo e reconstrói os containers — sem ninguém mexer na VM.</p>
+
+<p>O endereço do site: <strong><a href="https://34-39-181-38.nip.io">https://34-39-181-38.nip.io</a></strong>
+(seguro, com cadeado) — e também <code>http://34.39.181.38</code>.</p>
+
+<h2 id="tec">9. Tecnologias e versões</h2>
+<table>
+  <tr><th>Camada</th><th>Ferramentas (principais)</th></tr>
+  <tr><td>Banco de dados</td><td>PostgreSQL 16 + PostGIS 3.4</td></tr>
+  <tr><td>ETL</td><td>Node.js + TypeScript 5.7 · bibliotecas <code>csv-parse</code>, <code>pg</code>, <code>pg-copy-streams</code></td></tr>
+  <tr><td>API (backend)</td><td>Node.js + Fastify 5 + <code>pg</code></td></tr>
+  <tr><td>Frontend</td><td>React 18 + TypeScript 5.7 + OpenLayers 10 + Vite 5</td></tr>
+  <tr><td>Infra / hospedagem</td><td>Docker + Docker Compose · Caddy 2 (HTTPS) · Nginx · Google Cloud Compute Engine (Ubuntu 24.04)</td></tr>
+  <tr><td>Entrega contínua</td><td>GitHub + GitHub Actions</td></tr>
+  <tr><td>Fontes de dados</td><td>SSP-SP (ocorrências) · IBGE (malha municipal) · OpenStreetMap / Nominatim (bairros)</td></tr>
+</table>
+
+<h2 id="glossario">10. Glossário (para consultar)</h2>
+<dl class="glos">
+  <dt>Banco de dados</dt><dd>Um programa que guarda dados organizados e responde perguntas sobre eles rapidamente.</dd>
+  <dt>PostGIS</dt><dd>Extensão que dá ao banco a capacidade de entender mapas e fazer contas geográficas.</dd>
+  <dt>API</dt><dd>Uma "ponte" por onde um programa pede dados a outro. Aqui, o mapa pede à API, que pergunta ao banco.</dd>
+  <dt>Frontend / Backend</dt><dd>Frontend é a parte visível (o site no navegador); backend é a parte dos bastidores (API + banco).</dd>
+  <dt>Node.js</dt><dd>Um programa que executa código JavaScript/TypeScript fora do navegador (no servidor).</dd>
+  <dt>React / OpenLayers</dt><dd>React monta as telas; OpenLayers desenha os mapas.</dd>
+  <dt>Docker / container</dt><dd>Uma "caixinha" que empacota um programa com tudo que ele precisa, para rodar igual em qualquer máquina.</dd>
+  <dt>VM (máquina virtual)</dt><dd>Um computador alugado na nuvem, ligado 24h, com endereço na internet.</dd>
+  <dt>Caddy / Nginx</dt><dd>Programas que servem páginas web. O Caddy ainda cuida do HTTPS (o cadeado) automaticamente.</dd>
+  <dt>GitHub</dt><dd>Site que guarda o código na nuvem e permite que a dupla trabalhe junto, com histórico de tudo.</dd>
+  <dt>CI/CD (deploy automático)</dt><dd>Uma esteira que, ao receber código novo, atualiza o site sozinha.</dd>
+  <dt>Heatmap (mapa de calor)</dt><dd>Mancha colorida que mostra onde há mais ocorrências (vermelho = mais denso).</dd>
+  <dt>Buffer</dt><dd>Uma área expandida em torno de uma cidade (ex.: cidade + 15 km), para incluir a vizinhança.</dd>
+</dl>
+
+<p style="margin-top:40px; color:#5b6472; font-size:13px; text-align:center;">Documento gerado para o Projeto CSI-10 — ITA. Abra no navegador para ler com os diagramas.</p>
+
+</div>
+</body>
+</html>

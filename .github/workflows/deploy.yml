@@ -4,6 +4,12 @@ name: Deploy para a VM (Google Cloud)
 on:
   push:
     branches: [main]
+    paths:                       # so publica quando muda algo do app (nao docs)
+      - 'api/**'
+      - 'web/**'
+      - 'infra/**'
+      - 'docker-compose.vm.yml'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch: {}
 
 jobs:
