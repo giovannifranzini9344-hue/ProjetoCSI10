@@ -29,14 +29,31 @@ type Q = Record<string, string | undefined>;
 const lista = (s?: string) => (s ? s.split(",").map((x) => x.trim()).filter(Boolean) : []);
 const ehVerdadeiro = (s?: string) => s === "true" || s === "1";
 
-/** Filtro comum (tempo + municipio + natureza), sem restricao de geometria. */
+/** Filtro comum (tempo + recorte espacial + natureza). O recorte espacial e
+ *  por NOME de municipio OU, se houver buffer, pela GEOMETRIA do buffer (cidade
+ *  + raio) — assim o mapa/numeros passam a abranger as cidades vizinhas. */
 function filtroBase(q: Q) {
   const cond: string[] = [];
   const p: any[] = [];
   if (q.de) { p.push(Number(q.de)); cond.push(`(ano*100+mes) >= $${p.length}`); }   // de = AAAAMM
   if (q.ate) { p.push(Number(q.ate)); cond.push(`(ano*100+mes) <= $${p.length}`); } // ate = AAAAMM
-  const muns = lista(q.municipios);
-  if (muns.length) { p.push(muns); cond.push(`municipio = ANY($${p.length})`); }
+
+  const bufMun = lista(q.bufMun);
+  const bufRaio = Number(q.bufRaio);
+  if (bufMun.length && bufRaio > 0) {
+    // Buffer ativo: filtra pela area = municipios + raio (km). O subquery do
+    // buffer e calculado uma vez; reaproveitamos os mesmos parametros ($iMun,$iR).
+    p.push(bufMun); const iMun = p.length;
+    p.push(bufRaio); const iR = p.length;
+    const area = `(SELECT ST_Buffer(ST_Union(m.geom)::geography, $${iR}*1000)::geometry
+                   FROM municipios m JOIN municipio_ssp_map x ON x.cod_ibge=m.cod_ibge
+                   WHERE x.ssp_municipio = ANY($${iMun}))`;
+    cond.push(`geom && ${area} AND ST_Intersects(geom, ${area})`);
+  } else {
+    const muns = lista(q.municipios);
+    if (muns.length) { p.push(muns); cond.push(`municipio = ANY($${p.length})`); }
+  }
+
   const nats = lista(q.naturezas);
   if (nats.length) { p.push(nats); cond.push(`natureza = ANY($${p.length})`); }
   return { cond, p };
@@ -112,16 +129,34 @@ app.get("/api/pontos", async (req) => {
   return { type: "FeatureCollection", truncado, features };
 });
 
+// Cache simples em memoria: a mesma consulta devolve a mesma resposta, entao
+// guardamos por alguns minutos. Acelera muito a visao estadual inicial (que
+// todos abrem) e consultas repetidas. TTL curto para nao "envelhecer".
+const cache = new Map<string, { t: number; data: any }>();
+const TTL_MS = 5 * 60 * 1000;
+function comCache(chave: string, gera: () => Promise<any>): Promise<any> {
+  const hit = cache.get(chave);
+  if (hit && Date.now() - hit.t < TTL_MS) return Promise.resolve(hit.data);
+  return gera().then((data) => {
+    cache.set(chave, { t: Date.now(), data });
+    if (cache.size > 300) cache.delete(cache.keys().next().value as string); // limita memoria
+    return data;
+  });
+}
+
 // Heatmap agregado: agrupa os pontos numa grade e devolve centro+contagem.
 app.get("/api/heatmap", async (req) => {
   const q = req.query as Q;
-  const { where, p } = filtroMapa(q);
   const cell = Math.max(0.005, Math.min(Number(q.cell) || 0.02, 0.5)); // graus (~0.02 = ~2 km)
-  const r = await pool.query(
-    `SELECT round((ST_X(geom)/${cell})::numeric)*${cell} AS x,
-            round((ST_Y(geom)/${cell})::numeric)*${cell} AS y, count(*)::int AS n
-     FROM ocorrencias ${where} GROUP BY x, y`, p);
-  return r.rows;
+  const { where, p } = filtroMapa(q);
+  const chave = `heat|${cell}|${where}|${JSON.stringify(p)}`;
+  return comCache(chave, async () => {
+    const r = await pool.query(
+      `SELECT round((ST_X(geom)/${cell})::numeric)*${cell} AS x,
+              round((ST_Y(geom)/${cell})::numeric)*${cell} AS y, count(*)::int AS n
+       FROM ocorrencias ${where} GROUP BY x, y`, p);
+    return r.rows;
+  });
 });
 
 // Numeros do painel: conta TUDO que casa o filtro (inclusive os ocultos).

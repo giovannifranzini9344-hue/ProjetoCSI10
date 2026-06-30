@@ -186,8 +186,12 @@ export default function MapView({ filtros, buffer, onLoading }: Props) {
     const src = buf.current; if (!src) return;
     src.clear();
     if (buffer?.poligono) {
-      const f = geojson.readFeature({ type: "Feature", geometry: buffer.poligono }, { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" });
-      src.addFeature(f as Feature);
+      const f = geojson.readFeature({ type: "Feature", geometry: buffer.poligono }, { dataProjection: "EPSG:4326", featureProjection: "EPSG:3857" }) as Feature;
+      src.addFeature(f);
+      // Enquadra a area do buffer (cidade + raio); o moveend dispara a recarga
+      // dos dados, que agora abrange as cidades vizinhas.
+      const ext = f.getGeometry()?.getExtent();
+      if (ext && map.current) map.current.getView().fit(ext, { padding: [60, 60, 130, 60], maxZoom: 12, duration: 450 });
     }
   }, [buffer]);
 

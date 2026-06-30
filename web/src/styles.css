@@ -57,7 +57,16 @@ button.primary:hover { background: #3a6ae0; }
 }
 .timebar .play { width: 38px; height: 38px; border-radius: 50%; font-size: 15px; flex: none; }
 .timebar .periodo { font-size: 13px; font-weight: 600; min-width: 92px; text-align: center; }
-.timebar input[type="range"] { flex: 1; accent-color: #4f8cff; }
+.timebar input.single { flex: 1; accent-color: #4f8cff; }
+.timebar .dual { flex: 1; position: relative; height: 26px; }
+.dual input[type="range"] {
+  position: absolute; left: 0; top: 0; width: 100%; height: 26px; margin: 0;
+  -webkit-appearance: none; appearance: none; background: transparent; pointer-events: none;
+}
+.dual input[type="range"]::-webkit-slider-runnable-track { height: 4px; margin-top: 11px; background: #2a3140; border-radius: 2px; }
+.dual input[type="range"]::-moz-range-track { height: 4px; background: #2a3140; border-radius: 2px; }
+.dual input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; margin-top: 5px; width: 16px; height: 16px; border-radius: 50%; background: #4f8cff; border: 2px solid #cfe0ff; cursor: pointer; }
+.dual input[type="range"]::-moz-range-thumb { pointer-events: auto; width: 16px; height: 16px; border-radius: 50%; background: #4f8cff; border: 2px solid #cfe0ff; cursor: pointer; }
 .timebar .modo { display: flex; gap: 4px; }
 .timebar .modo button.on { background: #2f5fd0; border-color: #3a6ae0; }
 

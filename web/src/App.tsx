@@ -1,6 +1,6 @@
 /** ====================================================================
- *  App: orquestra o estado (filtros, tempo, buffer) e monta o layout
- *  (barra lateral + mapa + barra do tempo).
+ *  App: orquestra o estado (filtros, intervalo de tempo, buffer) e monta o
+ *  layout (barra lateral + mapa + barra do tempo).
  *  ==================================================================== */
 import { useEffect, useMemo, useState } from "react";
 import MapView from "./components/MapView";
@@ -31,14 +31,16 @@ export default function App() {
   const [naturezasSel, setNaturezasSel] = useState<string[]>([]);
   const [incluirSemLocal, setIncluir] = useState(false);
 
-  // tempo
-  const [index, setIndex] = useState(0);
+  // tempo: intervalo [iniIdx, fimIdx] (indices na lista de periodos)
+  const [iniIdx, setIniIdx] = useState(0);
+  const [fimIdx, setFimIdx] = useState(0);
   const [modo, setModo] = useState<Modo>("acumulado");
   const [playing, setPlaying] = useState(false);
 
   // buffer / painel
   const [raioKm, setRaioKm] = useState(15);
-  const [buffer, setBuffer] = useState<any>(null);
+  const [bufferAtivo, setBufferAtivo] = useState<{ municipios: string[]; raioKm: number } | null>(null);
+  const [bufferPoly, setBufferPoly] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
@@ -49,17 +51,18 @@ export default function App() {
     apiPeriodo().then((p) => {
       const lista = listaPeriodos(p.min, p.max);
       setPeriodos(lista);
-      setIndex(lista.length - 1); // comeca no periodo mais recente (acumulado = tudo)
+      setIniIdx(0);                 // inicio = Jan/2022
+      setFimIdx(lista.length - 1);  // fim = periodo mais recente (acumulado = tudo)
     }).catch(console.error);
   }, []);
 
   // filtros derivados (memoizados para nao refazer fetch a toa)
   const filtros: Filtros = useMemo(() => {
-    const atual = periodos[index];
-    const de = modo === "acumulado" ? periodos[0] : atual;
-    const ate = atual;
-    return { de, ate, municipios, naturezas: naturezasSel, incluirSemLocal };
-  }, [periodos, index, modo, municipios, naturezasSel, incluirSemLocal]);
+    const ate = periodos[fimIdx];
+    // Acumulado: do inicio escolhido ate o fim. Atual: so o mes do fim.
+    const de = modo === "acumulado" ? periodos[iniIdx] : periodos[fimIdx];
+    return { de, ate, municipios, naturezas: naturezasSel, incluirSemLocal, buffer: bufferAtivo };
+  }, [periodos, iniIdx, fimIdx, modo, municipios, naturezasSel, incluirSemLocal, bufferAtivo]);
 
   // numeros do painel
   useEffect(() => {
@@ -67,14 +70,22 @@ export default function App() {
     apiStats(filtros).then(setStats).catch(console.error);
   }, [filtros]);
 
-  // play: avanca o tempo automaticamente
+  // play: avanca o FIM do intervalo automaticamente
   useEffect(() => {
     if (!playing || !periodos.length) return;
     const id = setInterval(() => {
-      setIndex((i) => (i >= periodos.length - 1 ? (setPlaying(false), i) : i + 1));
+      setFimIdx((f) => {
+        if (f >= periodos.length - 1) { setPlaying(false); return f; }
+        const nf = f + 1;
+        if (modo === "atual") setIniIdx(nf); // no "atual" o mes unico anda junto
+        return nf;
+      });
     }, 900);
     return () => clearInterval(id);
-  }, [playing, periodos]);
+  }, [playing, periodos, modo]);
+
+  // Ao trocar para "atual", o cursor unico passa a ser o fim.
+  const trocarModo = (m: Modo) => { if (m === "atual") setIniIdx(fimIdx); setModo(m); };
 
   const setFiltros = (nf: Filtros) => {
     setMunicipios(nf.municipios);
@@ -84,8 +95,11 @@ export default function App() {
 
   const aplicarBuffer = async () => {
     if (!municipios.length) return;
-    try { setBuffer(await apiBuffer(municipios, raioKm)); } catch (e) { console.error(e); }
+    const alvo = { municipios: [...municipios], raioKm };
+    setBufferAtivo(alvo);
+    try { setBufferPoly(await apiBuffer(alvo.municipios, alvo.raioKm)); } catch (e) { console.error(e); }
   };
+  const limparBuffer = () => { setBufferAtivo(null); setBufferPoly(null); };
 
   return (
     <div className="app">
@@ -95,17 +109,23 @@ export default function App() {
         filtros={filtros}
         setFiltros={setFiltros}
         stats={stats}
-        bufferInfo={buffer ? { total: buffer.total } : null}
+        bufferInfo={bufferPoly ? { total: bufferPoly.total } : null}
         raioKm={raioKm}
         setRaioKm={setRaioKm}
         onAplicarBuffer={aplicarBuffer}
-        onLimparBuffer={() => setBuffer(null)}
+        onLimparBuffer={limparBuffer}
       />
       <div className="map-wrap">
         {loading && <div className="loading">carregando…</div>}
-        <MapView filtros={filtros} buffer={buffer} onLoading={setLoading} />
+        <MapView filtros={filtros} buffer={bufferPoly} onLoading={setLoading} />
         {periodos.length > 0 && (
-          <TimeSlider periodos={periodos} index={index} setIndex={setIndex} modo={modo} setModo={setModo} playing={playing} setPlaying={setPlaying} />
+          <TimeSlider
+            periodos={periodos}
+            iniIdx={iniIdx} fimIdx={fimIdx}
+            setIniIdx={setIniIdx} setFimIdx={setFimIdx}
+            modo={modo} setModo={trocarModo}
+            playing={playing} setPlaying={setPlaying}
+          />
         )}
       </div>
     </div>

@@ -6,6 +6,9 @@ export type Filtros = {
   municipios: string[]; // nomes da SSP
   naturezas: string[];
   incluirSemLocal: boolean;
+  // Quando o buffer esta ativo, o recorte espacial passa a ser a area do buffer
+  // (cidade + raio) em vez do filtro por nome de municipio.
+  buffer?: { municipios: string[]; raioKm: number } | null;
 };
 
 // Parametros extras de mapa (area visivel e tamanho da celula do heatmap).
@@ -21,7 +24,12 @@ function qs(f: Filtros, extra?: ExtraMapa): string {
   const p = new URLSearchParams();
   if (f.de) p.set("de", String(f.de));
   if (f.ate) p.set("ate", String(f.ate));
-  if (f.municipios.length) p.set("municipios", f.municipios.join(","));
+  if (f.buffer && f.buffer.municipios.length) {
+    p.set("bufMun", f.buffer.municipios.join(","));
+    p.set("bufRaio", String(f.buffer.raioKm));
+  } else if (f.municipios.length) {
+    p.set("municipios", f.municipios.join(","));
+  }
   if (f.naturezas.length) p.set("naturezas", f.naturezas.join(","));
   if (f.incluirSemLocal) p.set("incluirSemLocal", "1");
   if (extra?.bbox) p.set("bbox", extra.bbox);
