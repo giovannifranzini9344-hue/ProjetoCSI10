@@ -38,12 +38,14 @@ export default function TimeSlider({ periodos, iniIdx, fimIdx, setIniIdx, setFim
       </div>
 
       {modo === "acumulado" ? (
-        // Dois cursores sobrepostos na mesma trilha (início e fim).
-        <div className="dual">
-          <input type="range" min={0} max={max} value={iniIdx}
-            onChange={(e) => { setIniIdx(Math.min(Number(e.target.value), fimIdx)); setPlaying(false); }} />
-          <input type="range" min={0} max={max} value={fimIdx}
-            onChange={(e) => { setFimIdx(Math.max(Number(e.target.value), iniIdx)); setPlaying(false); }} />
+        // Dois controles NATIVOS (robustos): início e fim do período.
+        <div className="rangeDuplo">
+          <label><span>início</span>
+            <input type="range" min={0} max={max} value={iniIdx}
+              onChange={(e) => { setIniIdx(Math.min(Number(e.target.value), fimIdx)); setPlaying(false); }} /></label>
+          <label><span>fim</span>
+            <input type="range" min={0} max={max} value={fimIdx}
+              onChange={(e) => { setFimIdx(Math.max(Number(e.target.value), iniIdx)); setPlaying(false); }} /></label>
         </div>
       ) : (
         <input className="single" type="range" min={0} max={max} value={fimIdx}
