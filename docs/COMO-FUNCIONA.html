@@ -217,20 +217,40 @@ nomeados) foram usados no ETL para achar os centros dos bairros. Mesma fonte, us
 </table>
 
 <h2 id="glossario">10. Glossário (para consultar)</h2>
+<h3>Para quem nunca programou: os blocos básicos</h3>
 <dl class="glos">
-  <dt>Banco de dados</dt><dd>Um programa que guarda dados organizados e responde perguntas sobre eles rapidamente.</dd>
-  <dt>PostGIS</dt><dd>Extensão que dá ao banco a capacidade de entender mapas e fazer contas geográficas.</dd>
-  <dt>API</dt><dd>Uma "ponte" por onde um programa pede dados a outro. Aqui, o mapa pede à API, que pergunta ao banco.</dd>
-  <dt>Frontend / Backend</dt><dd>Frontend é a parte visível (o site no navegador); backend é a parte dos bastidores (API + banco).</dd>
-  <dt>Node.js</dt><dd>Um programa que executa código JavaScript/TypeScript fora do navegador (no servidor).</dd>
-  <dt>React / OpenLayers</dt><dd>React monta as telas; OpenLayers desenha os mapas.</dd>
-  <dt>Docker / container</dt><dd>Uma "caixinha" que empacota um programa com tudo que ele precisa, para rodar igual em qualquer máquina.</dd>
-  <dt>VM (máquina virtual)</dt><dd>Um computador alugado na nuvem, ligado 24h, com endereço na internet.</dd>
-  <dt>Caddy / Nginx</dt><dd>Programas que servem páginas web. O Caddy ainda cuida do HTTPS (o cadeado) automaticamente.</dd>
-  <dt>GitHub</dt><dd>Site que guarda o código na nuvem e permite que a dupla trabalhe junto, com histórico de tudo.</dd>
-  <dt>CI/CD (deploy automático)</dt><dd>Uma esteira que, ao receber código novo, atualiza o site sozinha.</dd>
-  <dt>Heatmap (mapa de calor)</dt><dd>Mancha colorida que mostra onde há mais ocorrências (vermelho = mais denso).</dd>
-  <dt>Buffer</dt><dd>Uma área expandida em torno de uma cidade (ex.: cidade + 15 km), para incluir a vizinhança.</dd>
+  <dt>Código / programa</dt><dd>Uma sequência de instruções escritas que diz ao computador exatamente o que fazer. Um "programa" é um conjunto dessas instruções com um objetivo.</dd>
+  <dt>Linguagem de programação</dt><dd>O "idioma" em que o código é escrito. Cada uma tem suas regras. Aqui usamos principalmente o <strong>JavaScript</strong>.</dd>
+  <dt>JavaScript</dt><dd>A linguagem mais usada da web. Originalmente rodava só dentro do navegador (para deixar os sites interativos).</dd>
+  <dt>TypeScript</dt><dd>Uma versão do JavaScript que adiciona "tipos" — uma checagem que avisa erros antes de rodar (ex.: garante que uma latitude seja sempre um número). Mais seguro para projetos grandes.</dd>
+  <dt>Navegador (browser)</dt><dd>O programa que você usa para abrir sites (Chrome, Firefox, Edge…). É onde o nosso mapa aparece.</dd>
+  <dt>Servidor</dt><dd>Um computador ligado o tempo todo que <em>serve</em> (entrega) páginas e dados para quem acessa pela internet.</dd>
+  <dt>Biblioteca / framework</dt><dd>Código pronto, feito por outras pessoas, que a gente reaproveita para não reinventar a roda. React, Fastify e OpenLayers são exemplos.</dd>
+</dl>
+
+<h3>As tecnologias do nosso projeto</h3>
+<dl class="glos">
+  <dt>Node.js</dt><dd>Um programa que permite rodar JavaScript <strong>fora do navegador</strong> — num servidor. É o "motor" que faz a nossa API e os <em>scripts</em> de dados funcionarem.</dd>
+  <dt>Fastify</dt><dd>Uma <em>biblioteca</em> (framework) para Node.js que facilita construir uma <strong>API</strong> — o programa que recebe pedidos e responde. Escolhido por ser rápido. É a nossa camada de "garçom".</dd>
+  <dt>React</dt><dd>Uma biblioteca para construir <strong>interfaces</strong> (telas) interativas no navegador. É com ela que montamos os botões, filtros e painéis do site.</dd>
+  <dt>OpenLayers</dt><dd>Uma biblioteca especializada em <strong>desenhar mapas</strong> interativos (zoom, camadas, pontos, mapa de calor). É o "motor cartográfico" do frontend.</dd>
+  <dt>Vite</dt><dd>Uma ferramenta que <strong>empacota</strong> o código do frontend para o navegador conseguir abrir rápido. Também roda o site na sua máquina enquanto a gente desenvolve.</dd>
+  <dt>Banco de dados</dt><dd>Um programa que <strong>guarda dados organizados</strong> e responde perguntas sobre eles muito rápido — como uma planilha gigante e poderosa.</dd>
+  <dt>PostgreSQL</dt><dd>O banco de dados que usamos: um dos mais sólidos e usados do mundo, gratuito e de código aberto.</dd>
+  <dt>PostGIS</dt><dd>Uma "extensão" (complemento) que dá ao PostgreSQL <strong>superpoderes geográficos</strong>: ele passa a entender mapas e calcular coisas como "o que está dentro desta área" em milissegundos.</dd>
+  <dt>API</dt><dd>Uma "ponte" por onde um programa pede dados a outro, em formato organizado. Aqui, o mapa (frontend) pede à API, que consulta o banco e devolve só o necessário.</dd>
+  <dt>Frontend / Backend</dt><dd>Frontend é a parte <strong>visível</strong> (o site no navegador). Backend são os <strong>bastidores</strong> (a API e o banco), que o usuário não vê.</dd>
+  <dt>Docker</dt><dd>Uma tecnologia para empacotar um programa com <strong>tudo que ele precisa</strong> dentro de uma "caixinha" padronizada, para que rode <strong>igual</strong> em qualquer computador — acabando com o clássico "na minha máquina funcionava".</dd>
+  <dt>Container</dt><dd>A "caixinha" do Docker em execução: uma cópia isolada e leve de um programa rodando. No projeto, cada peça (banco, API, site) roda no seu próprio container.</dd>
+  <dt>Nginx</dt><dd>Um <strong>servidor web</strong>: um programa que recebe os pedidos do navegador e devolve os arquivos do site (e pode repassar pedidos para a API). É quem entrega o nosso frontend.</dd>
+  <dt>Caddy</dt><dd>Parecido com o Nginx, mas com um truque: ele obtém e renova <strong>sozinho o certificado de HTTPS</strong> (o cadeado de segurança). Fica "na frente" de tudo, cuidando da segurança.</dd>
+  <dt>HTTPS / certificado</dt><dd>O "cadeado" do navegador. Criptografa a conexão entre o visitante e o site, para ninguém bisbilhotar no caminho.</dd>
+  <dt>VM (máquina virtual)</dt><dd>Um computador que não fica na sua mesa: é alugado na nuvem (no nosso caso, no Google Cloud), fica ligado 24h e tem um endereço na internet. É onde tudo roda.</dd>
+  <dt>Git / GitHub</dt><dd>Git é um sistema que guarda o <strong>histórico</strong> de todas as versões do código (como "fotos" do projeto). GitHub é o site que hospeda esse histórico na nuvem e deixa a dupla trabalhar junto.</dd>
+  <dt>CI/CD (deploy automático)</dt><dd>Uma "esteira" que, ao receber código novo no GitHub, <strong>atualiza o site sozinha</strong>, sem ninguém mexer no servidor.</dd>
+  <dt>ETL</dt><dd>Extract, Transform, Load (Extrair, Transformar, Carregar): o processo que pega os dados crus, limpa/organiza e coloca no banco.</dd>
+  <dt>Heatmap (mapa de calor)</dt><dd>Mancha colorida que mostra <strong>onde há mais ocorrências</strong> (vermelho = mais denso, azul = menos).</dd>
+  <dt>Buffer</dt><dd>Uma área expandida em torno de uma cidade (ex.: cidade + 15 km), para incluir a vizinhança na análise.</dd>
 </dl>
 
 <p style="margin-top:40px; color:#5b6472; font-size:13px; text-align:center;">Documento gerado para o Projeto CSI-10 — ITA. Abra no navegador para ler com os diagramas.</p>
